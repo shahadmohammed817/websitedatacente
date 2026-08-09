@@ -1,0 +1,162 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "رفع ملف Excel";
+    ViewData["FullWidth"] = "1";
+    ViewData["HasSidebar"] = "1";
+}
+
+<div class="dashboard-layout home-shell">
+    <aside class="sidebar-nav scope-nav">
+        <div class="sidebar-nav-title">
+            <span>لوحة التنقّل</span>
+            <button class="nav-close" id="navClose" type="button" aria-label="إغلاق القائمة"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="sidebar-scroll">
+            <partial name="_PageNavSidebar" />
+        </div>
+    </aside>
+
+    <section class="dashboard-content">
+        <div class="nav-bar-row">
+            <a href="@Url.Action("Index", "Home")" class="back-btn"
+               onclick="if(document.referrer && document.referrer.indexOf(location.origin)===0){history.back();return false;}">
+                @Icons.Svg("back", "btn-svg") <span>رجوع</span>
+            </a>
+            <div class="breadcrumb-bar">
+                <a href="@Url.Action("Index", "Home")">الرئيسية</a>
+                <span>/</span>
+                <span>رفع ملف Excel</span>
+            </div>
+        </div>
+
+        <div class="page-title">رفع ملف Excel وتحديث قاعدة البيانات</div>
+        <div class="page-subtitle">زر رفع واحد فقط — بدون اختيار بند، يتم تحديد البند لكل صف تلقائيًا وتحديث كل اللوحات فور الاستيراد</div>
+
+        @if (AppMode.ReadOnly)
+        {
+            <div class="no-data-box">
+                <span class="nd-icon">@Icons.Svg("lock", "")</span>
+                الموقع بوضع العرض فقط حاليًا - رفع الملفات غير متاح بهذه النسخة.
+            </div>
+        }
+        else
+        {
+        <div class="upload-card">
+
+            <div class="mode-hint" id="autoModeHint">
+                <span class="mode-hint-icon">@Icons.Svg("info", "")</span>
+                <div>
+                    لا حاجة لاختيار بند يدويًا. يقرأ النظام عمود <strong>"تصنيف البند"</strong> تلقائيًا من الملف
+                    (بقيم مثل <strong>"استثمار"</strong> أو <strong>"تأجير مؤقت"</strong>)، ويوزّع كل صف إلى بنده الصحيح،
+                    ثم يحدّث قاعدة البيانات بالكامل لكل بند وَرَد بالملف — وعند الضغط على أي بند بالرسوم البيانية
+                    تتحدث جميع البطاقات والرسوم الأخرى فورًا مثل Power BI.
+                </div>
+            </div>
+
+            <div id="dropZone">
+                <span class="dropzone-icon">@Icons.Svg("upload", "")</span>
+                <div style="font-weight:700; color:var(--brand-dark); margin-bottom:4px;">اسحب الملف هنا</div>
+                <div style="color:var(--muted); font-size:.88rem;">أو <strong style="color:var(--brand-dark);">اضغط لاختيار ملف</strong> بصيغة .xlsx</div>
+            </div>
+            <input type="file" id="excelFile" accept=".xlsx" />
+
+            <div id="filePreview">
+                <span class="file-preview-icon">@Icons.Svg("file", "")</span>
+                <span id="filePreviewName" style="font-weight:700; flex:1;"></span>
+                <span id="filePreviewSize" style="color:var(--muted);"></span>
+            </div>
+
+            <button id="uploadBtn" class="btn-brand" disabled>رفع وتحديث قاعدة البيانات</button>
+
+            <div id="uploadAlert"></div>
+        </div>
+        }
+    </section>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            var dropZone = document.getElementById("dropZone");
+            var excelFile = document.getElementById("excelFile");
+            var uploadBtn = document.getElementById("uploadBtn");
+            var filePreview = document.getElementById("filePreview");
+            var filePreviewName = document.getElementById("filePreviewName");
+            var filePreviewSize = document.getElementById("filePreviewSize");
+            var uploadAlert = document.getElementById("uploadAlert");
+
+            dropZone.addEventListener("click", function () { excelFile.click(); });
+            dropZone.addEventListener("dragover", function (e) { e.preventDefault(); dropZone.classList.add("drag-over"); });
+            dropZone.addEventListener("dragleave", function () { dropZone.classList.remove("drag-over"); });
+            dropZone.addEventListener("drop", function (e) {
+                e.preventDefault();
+                dropZone.classList.remove("drag-over");
+                if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0]);
+            });
+            excelFile.addEventListener("change", function () {
+                if (excelFile.files.length) handleFileSelect(excelFile.files[0]);
+            });
+
+            function handleFileSelect(file) {
+                if (!file.name.toLowerCase().endsWith(".xlsx")) {
+                    showAlert("يرجى اختيار ملف بصيغة .xlsx فقط.", "danger");
+                    return;
+                }
+                hideAlert();
+                filePreviewName.textContent = file.name;
+                filePreviewSize.textContent = formatBytes(file.size);
+                filePreview.style.display = "flex";
+                dropZone.style.display = "none";
+                uploadBtn.disabled = false;
+            }
+
+            uploadBtn.addEventListener("click", async function () {
+                var file = excelFile.files[0];
+                if (!file) {
+                    showAlert("يرجى اختيار الملف أولاً.", "danger");
+                    return;
+                }
+
+                uploadBtn.innerHTML = '<span class="spinner-sm"></span> جاري الاستيراد وتحديث قاعدة البيانات…';
+                uploadBtn.disabled = true;
+
+                var formData = new FormData();
+                formData.append("excelFile", file);
+
+                try {
+                    var resp = await fetch("@Url.Action("UploadExcel", "Admin")", { method: "POST", body: formData });
+                    var result = await resp.json();
+
+                    if (!result.success) {
+                        showAlert(result.message || "حدث خطأ أثناء الاستيراد.", "danger");
+                        uploadBtn.innerHTML = "رفع وتحديث قاعدة البيانات";
+                        uploadBtn.disabled = false;
+                    } else {
+                        showAlert(result.message + " — سيتم تحديث لوحات البيانات تلقائيًا الآن…", "success");
+                        uploadBtn.innerHTML = "تم التحديث بنجاح";
+                        setTimeout(function () {
+                            window.location.href = "@Url.Action("Index", "Home")";
+                        }, 1800);
+                    }
+                } catch (err) {
+                    showAlert("تعذّر الاتصال بالخادم.", "danger");
+                    uploadBtn.innerHTML = "رفع وتحديث قاعدة البيانات";
+                    uploadBtn.disabled = false;
+                }
+            });
+
+            function showAlert(msg, type) {
+                uploadAlert.textContent = msg;
+                uploadAlert.className = type;
+                uploadAlert.style.display = "block";
+            }
+            function hideAlert() { uploadAlert.style.display = "none"; }
+
+            function formatBytes(b) {
+                if (b < 1024) return b + " B";
+                if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
+                return (b / 1048576).toFixed(1) + " MB";
+            }
+        });
+    </script>
+}

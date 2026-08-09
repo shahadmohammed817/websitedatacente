@@ -1,0 +1,311 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "طباعة العقود";
+    ViewData["FullWidth"] = "1";
+    ViewData["HasSidebar"] = "1";
+}
+
+<div class="dashboard-layout home-shell">
+    <aside class="sidebar-nav scope-nav">
+        <div class="sidebar-nav-title">
+            <span>لوحة التنقّل</span>
+            <button class="nav-close" id="navClose" type="button" aria-label="إغلاق القائمة"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="sidebar-scroll">
+            <partial name="_PageNavSidebar" />
+        </div>
+    </aside>
+
+    <section class="dashboard-content">
+    <div class="nav-bar-row">
+    <a href="@Url.Action("Index", "Home")" class="back-btn"
+       onclick="if(document.referrer && document.referrer.indexOf(location.origin)===0){history.back();return false;}">
+        @Icons.Svg("back", "btn-svg") <span>رجوع</span>
+    </a>
+    <div class="breadcrumb-bar">
+        <a href="@Url.Action("Index", "Home")">الرئيسية</a>
+        <span>/</span>
+        <span>طباعة العقود</span>
+    </div>
+</div>
+
+<div class="page-title">البحث عن عقد وطباعة بياناته</div>
+<div class="page-subtitle">أدخل رقم العقد لعرض كل فواتيره (اسم العقد، رقم الفاتورة، القيمة شاملة الضريبة، تاريخ الإنشاء، الجهة، وتصنيف البند)، ثم صدّرها كملف Excel أو اطبعها مباشرة كـ PDF.</div>
+
+<div class="contract-mode-tabs">
+    <button type="button" class="contract-mode-tab active" id="modeTabSingle" data-mode="single">
+        @Icons.Svg("search", "") <span>عقد واحد</span>
+    </button>
+    <button type="button" class="contract-mode-tab" id="modeTabAll" data-mode="all">
+        @Icons.Svg("pdf", "") <span>كل العقود</span>
+    </button>
+</div>
+
+<div class="contract-search-card" id="singleModeCard">
+    <label class="form-label-ar" for="contractNumberInput">رقم العقد</label>
+    <div class="contract-search-row">
+        <input type="text" id="contractNumberInput" class="contract-search-input" placeholder="مثال: CN-40042" autocomplete="off" />
+        <button id="contractSearchBtn" class="contract-search-btn">
+            @Icons.Svg("search", "") <span>بحث</span>
+        </button>
+    </div>
+    <div id="contractAlert"></div>
+</div>
+
+<div class="contract-search-card" id="allModeCard" style="display:none;">
+    <div class="contract-all-row">
+        <span>سيتم عرض بيانات كل العقود الموجودة بنفس الأعمدة، مع إمكانية تصديرها أو طباعتها دفعة واحدة.</span>
+        <button id="loadAllBtn" class="contract-search-btn">
+            @Icons.Svg("search", "") <span>عرض كل العقود</span>
+        </button>
+    </div>
+    <div id="contractAllAlert"></div>
+</div>
+
+<div id="contractResultsSection" style="display:none;">
+    <div class="contract-print-header">
+        <div class="contract-print-logo-row">
+            <span>أمانة منطقة المدينة المنورة</span>
+        </div>
+        <div class="contract-print-title"><span id="printTitleLabel">بيانات العقد رقم:</span> <span id="printContractNumber"></span></div>
+        <div class="contract-print-date">تاريخ الطباعة: <span id="printDate"></span></div>
+    </div>
+
+    <div class="contract-results-head">
+        <div class="contract-results-title">
+            نتائج البحث <span class="contract-count-badge" id="contractCountBadge">0</span>
+        </div>
+        <div class="contract-actions">
+            <button type="button" class="contract-action-btn" id="exportExcelBtn">
+                @Icons.Svg("excel", "") <span>تصدير Excel</span>
+            </button>
+            <button type="button" class="contract-action-btn" id="printPdfBtn">
+                @Icons.Svg("pdf", "") <span>طباعة PDF</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="contract-table-wrap">
+        <table class="contract-table">
+            <thead>
+                <tr>
+                    <th id="contractNumberColHead" style="display:none;">رقم العقد</th>
+                    <th>اسم العقد</th>
+                    <th>رقم الفاتورة</th>
+                    <th>القيمة (شامل الضريبة)</th>
+                    <th>تاريخ الإنشاء</th>
+                    <th>الجهة</th>
+                    <th>تصنيف البند</th>
+                </tr>
+            </thead>
+            <tbody id="contractTableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="no-data-box" id="contractNoData" style="display:none;">
+    <span class="nd-icon">@Icons.Svg("inbox", "")</span>
+    <span id="contractNoDataMsg">لم يتم العثور على أي بيانات لرقم العقد المدخل.</span>
+</div>
+    </section>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var input = document.getElementById("contractNumberInput");
+            var searchBtn = document.getElementById("contractSearchBtn");
+            var alertBox = document.getElementById("contractAlert");
+            var loadAllBtn = document.getElementById("loadAllBtn");
+            var allAlertBox = document.getElementById("contractAllAlert");
+            var modeTabSingle = document.getElementById("modeTabSingle");
+            var modeTabAll = document.getElementById("modeTabAll");
+            var singleModeCard = document.getElementById("singleModeCard");
+            var allModeCard = document.getElementById("allModeCard");
+            var resultsSection = document.getElementById("contractResultsSection");
+            var noDataBox = document.getElementById("contractNoData");
+            var noDataMsg = document.getElementById("contractNoDataMsg");
+            var contractTable = document.querySelector(".contract-table");
+            var contractNumberColHead = document.getElementById("contractNumberColHead");
+            var tableBody = document.getElementById("contractTableBody");
+            var countBadge = document.getElementById("contractCountBadge");
+            var exportExcelBtn = document.getElementById("exportExcelBtn");
+            var printPdfBtn = document.getElementById("printPdfBtn");
+            var printTitleLabel = document.getElementById("printTitleLabel");
+            var printContractNumber = document.getElementById("printContractNumber");
+            var printDate = document.getElementById("printDate");
+
+            var searchUrl = "@Url.Action("Search", "Contract")";
+            var searchAllUrl = "@Url.Action("SearchAll", "Contract")";
+            var exportUrl = "@Url.Action("ExportExcel", "Contract")";
+            var currentMode = "single";
+            var currentNumber = "";
+            var searchBtnOriginalHtml = searchBtn.innerHTML;
+            var loadAllBtnOriginalHtml = loadAllBtn.innerHTML;
+
+            function showAlert(box, msg, type) {
+                box.textContent = msg;
+                box.className = type;
+                box.style.display = "block";
+            }
+            function hideAlert(box) { box.style.display = "none"; }
+
+            // القيمة/التاريخ: لو غير موجودة تُترك الخلية فارغة تمامًا بدل وضع أي رمز بديل
+            function formatValue(v) {
+                if (v === null || v === undefined) return "";
+                return Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+            function formatDate(d) {
+                if (!d) return "";
+                var dt = new Date(d);
+                if (isNaN(dt.getTime())) return "";
+                return dt.toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "2-digit", day: "2-digit" });
+            }
+            function escapeHtml(s) {
+                if (s === null || s === undefined) return "";
+                return String(s).replace(/[&<>"']/g, function (c) {
+                    return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
+                });
+            }
+
+            function switchMode(mode) {
+                currentMode = mode;
+                resultsSection.style.display = "none";
+                noDataBox.style.display = "none";
+                hideAlert(alertBox);
+                hideAlert(allAlertBox);
+
+                var isAll = mode === "all";
+                modeTabSingle.classList.toggle("active", !isAll);
+                modeTabAll.classList.toggle("active", isAll);
+                singleModeCard.style.display = isAll ? "none" : "";
+                allModeCard.style.display = isAll ? "" : "none";
+            }
+
+            async function runSearch() {
+                var number = input.value.trim();
+                if (!number) {
+                    showAlert(alertBox, "يرجى إدخال رقم العقد.", "danger");
+                    return;
+                }
+
+                hideAlert(alertBox);
+                resultsSection.style.display = "none";
+                noDataBox.style.display = "none";
+                searchBtn.disabled = true;
+                searchBtn.innerHTML = '<span class="spinner-sm"></span> جارٍ البحث…';
+
+                try {
+                    var resp = await fetch(searchUrl + "?number=" + encodeURIComponent(number));
+                    var data = await resp.json();
+
+                    if (!data.success) {
+                        noDataMsg.textContent = data.message || "لم يتم العثور على أي بيانات لرقم العقد المدخل.";
+                        noDataBox.style.display = "block";
+                        return;
+                    }
+
+                    currentNumber = number;
+                    renderResults(data.results, {
+                        showNumberColumn: false,
+                        titleLabel: "بيانات العقد رقم:",
+                        titleValue: number
+                    });
+                } catch (err) {
+                    showAlert(alertBox, "تعذّر الاتصال بالخادم.", "danger");
+                } finally {
+                    searchBtn.disabled = false;
+                    searchBtn.innerHTML = searchBtnOriginalHtml;
+                }
+            }
+
+            async function runLoadAll() {
+                hideAlert(allAlertBox);
+                resultsSection.style.display = "none";
+                noDataBox.style.display = "none";
+                loadAllBtn.disabled = true;
+                loadAllBtn.innerHTML = '<span class="spinner-sm"></span> جارٍ التحميل…';
+
+                try {
+                    var resp = await fetch(searchAllUrl);
+                    var data = await resp.json();
+
+                    if (!data.success) {
+                        noDataMsg.textContent = data.message || "لا توجد أي بيانات عقود مسجّلة حالياً.";
+                        noDataBox.style.display = "block";
+                        return;
+                    }
+
+                    currentNumber = "";
+                    renderResults(data.results, {
+                        showNumberColumn: true,
+                        titleLabel: "بيانات جميع العقود",
+                        titleValue: ""
+                    });
+                } catch (err) {
+                    showAlert(allAlertBox, "تعذّر الاتصال بالخادم.", "danger");
+                } finally {
+                    loadAllBtn.disabled = false;
+                    loadAllBtn.innerHTML = loadAllBtnOriginalHtml;
+                }
+            }
+
+            function renderResults(results, opts) {
+                contractNumberColHead.style.display = opts.showNumberColumn ? "" : "none";
+                contractTable.classList.toggle("with-number", opts.showNumberColumn);
+
+                tableBody.innerHTML = "";
+                results.forEach(function (r) {
+                    var tr = document.createElement("tr");
+                    var numberCell = opts.showNumberColumn
+                        ? "<td>" + escapeHtml(r.contractNumber) + "</td>"
+                        : "";
+                    tr.innerHTML =
+                        numberCell +
+                        "<td>" + escapeHtml(r.contractName) + "</td>" +
+                        "<td>" + escapeHtml(r.invoiceNumber) + "</td>" +
+                        "<td>" + formatValue(r.value) + "</td>" +
+                        "<td>" + formatDate(r.createdDate) + "</td>" +
+                        "<td>" + escapeHtml(r.entity) + "</td>" +
+                        "<td>" + escapeHtml(r.classification) + "</td>";
+                    tableBody.appendChild(tr);
+                });
+
+                countBadge.textContent = results.length;
+                printTitleLabel.textContent = opts.titleLabel;
+                printContractNumber.textContent = opts.titleValue;
+                printDate.textContent = new Date().toLocaleDateString("ar-SA-u-nu-latn");
+                resultsSection.style.display = "block";
+            }
+
+            modeTabSingle.addEventListener("click", function () { switchMode("single"); });
+            modeTabAll.addEventListener("click", function () { switchMode("all"); });
+
+            // دخول مباشر لوضع "كل العقود" عبر رابط ?mode=all (من قائمة "طباعة العقود" الجانبية)
+            var initialMode = new URLSearchParams(window.location.search).get("mode");
+            if (initialMode === "all") {
+                switchMode("all");
+                runLoadAll();
+            }
+
+            searchBtn.addEventListener("click", runSearch);
+            input.addEventListener("keydown", function (e) {
+                if (e.key === "Enter") runSearch();
+            });
+            loadAllBtn.addEventListener("click", runLoadAll);
+
+            exportExcelBtn.addEventListener("click", function () {
+                if (currentMode === "all") {
+                    window.location.href = exportUrl + "?all=true";
+                } else {
+                    if (!currentNumber) return;
+                    window.location.href = exportUrl + "?number=" + encodeURIComponent(currentNumber);
+                }
+            });
+
+            printPdfBtn.addEventListener("click", function () {
+                window.print();
+            });
+        })();
+    </script>
+}

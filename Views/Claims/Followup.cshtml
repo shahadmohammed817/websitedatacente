@@ -1,0 +1,68 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "الطرح";
+    ViewData["FullWidth"] = "1";
+    ViewData["HasSidebar"] = "1";
+}
+
+<div class="dashboard-layout home-shell">
+    <aside class="sidebar-nav scope-nav">
+        <div class="sidebar-nav-title">
+            <span>لوحة التنقّل</span>
+            <button class="nav-close" id="navClose" type="button" aria-label="إغلاق القائمة"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="sidebar-scroll">
+            <partial name="_PageNavSidebar" />
+        </div>
+    </aside>
+
+    <section class="dashboard-content">
+        <div class="nav-bar-row">
+            <a href="@Url.Action("Index", "Home")" class="back-btn"
+               onclick="if(document.referrer && document.referrer.indexOf(location.origin)===0){history.back();return false;}">
+                @Icons.Svg("back", "btn-svg") <span>رجوع</span>
+            </a>
+            <div class="breadcrumb-bar">
+                <a href="@Url.Action("Index", "Home")">الرئيسية</a>
+                <span>/</span>
+                <a href="@Url.Action("Overview", "Claims")">المطالبات والمديونيات</a>
+                <span>/</span>
+                <span>الطرح</span>
+            </div>
+        </div>
+
+        <div class="dash-header-row">
+            <div class="dash-header-info">
+                <div class="dash-icon-badge">@Icons.Svg("trending", "")</div>
+                <div>
+                    <div class="page-title" style="margin-bottom:0;">الطرح</div>
+                    <div class="page-subtitle" style="margin-bottom:0;">الحالات التي تحتاج متابعة عاجلة، وتحليلات إضافية لسرعة الإنجاز</div>
+                </div>
+            </div>
+            <a href="@Url.Action("Upload", "Claims")" class="tc-upload-btn">
+                @Icons.Svg("upload", "") <span>رفع ملف Excel</span>
+            </a>
+        </div>
+
+        <div id="claimsFollowupContent">
+            <div class="tc-gauge-grid" id="cfGaugeRow" style="margin-bottom:14px;"></div>
+
+            <div class="charts-grid-3" id="cfChartsRow1" style="margin-bottom:12px;"></div>
+            <div class="charts-grid-3" id="cfChartsRow2" style="margin-bottom:12px;"></div>
+            <div class="charts-grid-3 tc-row-single" id="cfChartsRow3"></div>
+        </div>
+
+        <div class="no-data-box" id="cfNoDataBox" style="display:none;">
+            <span class="nd-icon">@Icons.Svg("inbox", "")</span>
+            لا توجد بيانات مطالبات أو مديونيات مستوردة بعد. اضغط "رفع ملف Excel" أعلى الصفحة للبدء.
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script>
+        window.CD_FOLLOWUP_DATA_URL = "@Url.Action("FollowupData", "Claims")";
+    </script>
+    <script src="~/js/claims-followup.js" asp-append-version="true"></script>
+}

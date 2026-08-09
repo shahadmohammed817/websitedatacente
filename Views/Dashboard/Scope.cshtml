@@ -1,0 +1,102 @@
+@model ExcelDashboard.Models.ViewModels.ScopeDashboardViewModel
+@using Microsoft.AspNetCore.Html
+@{
+    Layout = "_Layout";
+    bool isAmanah = Model.Scope == ExcelDashboard.Models.ScopeType.Amanah;
+    string scopeTitle = isAmanah ? "بنود الأمانة" : "بنود البلدية";
+    string scopeNameEn = isAmanah ? "Amanah" : "Baladiyah";
+    string scopeIcon = isAmanah ? "building" : "city";
+    ViewData["Title"] = scopeTitle;
+    // صفحة بقائمة جانبية: عرض كامل + زر القائمة (Drawer) على الجوال
+    ViewData["FullWidth"] = "1";
+    ViewData["HasSidebar"] = "1";
+    var scopeDataUrl = Url.Action("ScopeData", "Dashboard", new { scope = Model.Scope });
+
+    // بيانات صندوق الفلاتر المتسلسل (JSON مضمّن، يُستهلك من section-dashboard.js بدون أي طلب
+    // شبكة إضافي): الأمانة ← أسماء الإدارات العامة/الفرعية الخام (نصية)، البلدية ← أسماء البلديات
+    string filterDataJson = isAmanah
+        ? System.Text.Json.JsonSerializer.Serialize(Model.AmanahDeptOptions.Select(g => new
+            {
+                name = g.Name,
+                subs = g.Subs
+            }))
+        : System.Text.Json.JsonSerializer.Serialize(Model.Entities);
+}
+
+<div class="dashboard-layout home-shell">
+    @* accordion-nav: تفعيل سلوك الأكورديون في JS — scope-nav: تنسيق الانسدال الناعم *@
+    <aside class="sidebar-nav accordion-nav scope-nav">
+        <div class="sidebar-nav-title">
+            <span>لوحة التنقّل</span>
+            <button class="nav-close" id="navClose" type="button" aria-label="إغلاق القائمة"><i class="bi bi-x-lg"></i></button>
+        </div>
+
+        <div class="sidebar-scroll">
+            <partial name="_PageNavSidebar" />
+        </div>
+
+        <a class="sidebar-upload-btn" href="@Url.Action("Upload", "Admin")">
+            @Icons.Svg("upload", "btn-svg") <span>رفع ملف Excel</span>
+        </a>
+    </aside>
+
+    <section class="dashboard-content">
+        <div class="nav-bar-row">
+            <a href="@Url.Action("Index", "Home")" class="back-btn">@Icons.Svg("back", "btn-svg") <span>رجوع</span></a>
+            <div class="breadcrumb-bar">
+                <a href="@Url.Action("Index", "Home")">الرئيسية</a>
+                <span>/</span>
+                <span>@scopeTitle</span>
+            </div>
+        </div>
+
+        <div class="dash-header-row">
+            <div class="dash-header-info">
+                <div class="dash-icon-badge" id="dashIconBadge">@Icons.Svg(scopeIcon, "")</div>
+                <div>
+                    <div class="dash-section-title" id="dashTitleAr">@scopeTitle</div>
+                    <div class="page-subtitle" id="dashTitleEn" style="margin-bottom:0;">@scopeNameEn</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="dashboardGrids">
+            <div class="kpi-grid-4" id="kpiGrid"></div>
+            <div class="charts-grid-3" id="chartsRow1" style="margin-bottom:18px;"></div>
+            <div class="charts-grid-3" id="chartsRow2"></div>
+        </div>
+
+        <div class="no-data-box" id="noDataBox" style="display:none;">
+            <span class="nd-icon">@Icons.Svg("inbox", "")</span>
+            لا توجد بيانات مستوردة لهذا البند بعد.
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script>
+        window.DEFAULT_DASHBOARD_URL = "@scopeDataUrl";
+        window.FILTER_MODE = "@(isAmanah ? "amanah-scope" : "baladiyah-scope")";
+        @if (isAmanah)
+        {
+            <text>window.AMANAH_DEPT_GROUPS = @Html.Raw(filterDataJson);</text>
+        }
+        else
+        {
+            <text>window.BALADIYAH_ENTITIES = @Html.Raw(filterDataJson);</text>
+        }
+    </script>
+    <script src="~/js/section-dashboard.js" asp-append-version="true"></script>
+    @if (isAmanah)
+    {
+        @* صفحة "بنود الأمانة" فقط: يعيد هذا الملف تعريف رسوم الصف الأول/الثاني بأربعة
+           رسوم مخصّصة لبند الاستثمار (كل رسم يعرض معلومة مختلفة، دون تكرار):
+           1) الإيرادات حسب الإدارات العامة — Horizontal Bar (ثابت)
+           2) أعلى الإدارات الفرعية إيرادًا — Horizontal Bar
+           3) المحصّل مقابل غير المحصّل حسب الإدارات العامة — Grouped Bar (ثابت)
+           4) اتجاه الإيرادات — Line Chart
+           دون أي تأثير على صفحة "بنود البلدية" التي تستخدم نفس هذا العرض (Scope.cshtml) *@
+        <script src="~/js/investment-scope-charts.js" asp-append-version="true"></script>
+    }
+}

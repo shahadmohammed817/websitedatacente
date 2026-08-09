@@ -1,0 +1,91 @@
+@model ExcelDashboard.Models.ViewModels.SectionListViewModel
+@{
+    Layout = "_Layout";
+    string scopeTitle = Model.Scope switch
+    {
+        ExcelDashboard.Models.ScopeType.Amanah => "الأمانة",
+        ExcelDashboard.Models.ScopeType.Baladiyah => "البلدية",
+        _ => Model.Scope.ToString()
+    };
+    bool isDrillDown = Model.ParentId.HasValue;
+    string pageTitle = isDrillDown ? (Model.ParentNameAr ?? scopeTitle) : scopeTitle;
+    ViewData["Title"] = pageTitle;
+
+    // رابط "الرجوع خطوة واحدة": يعود دائمًا للمستوى الأعلى مباشرةً مهما كان عمق التنقّل
+    string backUrl;
+    if (!isDrillDown)
+    {
+        backUrl = Url.Action("Index", "Home")!;
+    }
+    else
+    {
+        var pIdx = Model.Breadcrumbs.FindIndex(c => c.Id == Model.ParentId);
+        backUrl = pIdx > 0
+            ? Url.Action("Sections", "Home", new { scope = Model.Scope, parentId = Model.Breadcrumbs[pIdx - 1].Id })!
+            : Url.Action("Sections", "Home", new { scope = Model.Scope })!;
+    }
+}
+
+@* ملاحظة: هذه الصفحة لم تعد تُعرض — رابط Home/Sections يحوّل الآن مباشرة إلى
+   داشبورد النطاق (Dashboard/Scope). أُبقي الملف مرجعًا ويمكن حذفه بأمان. *@
+
+<div class="nav-bar-row">
+    <a href="@backUrl" class="back-btn">@Icons.Svg("back", "btn-svg") <span>رجوع</span></a>
+    <div class="breadcrumb-bar">
+        <a href="@Url.Action("Index", "Home")">الرئيسية</a>
+        <span>/</span>
+        <a href="@Url.Action("Sections", "Home", new { scope = Model.Scope })">@scopeTitle</a>
+        @foreach (var crumb in Model.Breadcrumbs)
+        {
+            <span>/</span>
+            @if (crumb.Id == Model.ParentId)
+            {
+                <span>@crumb.NameAr</span>
+            }
+            else
+            {
+                <a href="@Url.Action("Sections", "Home", new { scope = Model.Scope, parentId = crumb.Id })">@crumb.NameAr</a>
+            }
+        }
+    </div>
+</div>
+
+<div class="page-title">@pageTitle</div>
+<div class="page-subtitle">
+    @(isDrillDown ? "اختر الإدارة لاستعراض بياناتها" : "اختر البند لاستعراض لوحة البيانات الخاصة به")
+</div>
+
+@if (!Model.Sections.Any())
+{
+    <div class="no-data-box">
+        <span class="nd-icon">@Icons.Svg("inbox", "")</span>
+        لا توجد بنود متاحة حالياً في هذا المستوى.
+    </div>
+}
+else
+{
+    <div class="sections-grid">
+        @foreach (var sec in Model.Sections)
+        {
+            bool hasChildren = sec.SubSections.Any();
+            // البنود المعلّمة كـ IsDashboardEntry (مثل: تأجير مؤقت، تأجير المباني، تأجير المرافق، ريع الأراضي)
+            // تفتح صفحة الداشبورد مباشرة حتى لو كان لديها إدارات فرعية، حيث تُعرض الإدارات
+            // العامة/الفرعية كقائمة جانبية داخل الداشبورد نفسه بدل صفحة قائمة بنود وسيطة.
+            bool goesToDashboard = !hasChildren || sec.IsDashboardEntry;
+
+            string href = goesToDashboard
+                ? Url.Action("Section", "Dashboard", new { sectionId = sec.Id })!
+                : Url.Action("Sections", "Home", new { scope = Model.Scope, parentId = sec.Id })!;
+
+            <a href="@href" class="section-card">
+                <div class="sc-icon">@Icons.Svg(Icons.ForSection(sec.Slug), "")</div>
+                <div class="sc-name">@sec.NameAr</div>
+                <div class="sc-name-en">@sec.NameEn</div>
+                <div class="sc-action">
+                    @(goesToDashboard ? "عرض الداشبورد" : "استعراض الإدارات")
+                    @Icons.Svg("arrow", "act-svg")
+                </div>
+            </a>
+        }
+    </div>
+}

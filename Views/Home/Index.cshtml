@@ -1,0 +1,163 @@
+@model ExcelDashboard.Models.ViewModels.ScopeSelectionViewModel
+@using Microsoft.AspNetCore.Html
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "الصفحة الرئيسية";
+    bool hasAnyScope = Model.CanSeeAmanah || Model.CanSeeBaladiyah;
+    // الرئيسية (بوجود القائمة الجانبية) فقط بعرض كامل لتلتصق القائمة بحافة اليمين
+    ViewData["FullWidth"] = hasAnyScope ? "1" : "0";
+    // إظهار زر القائمة (Drawer) على الجوال
+    ViewData["HasSidebar"] = hasAnyScope ? "1" : "0";
+
+    // شجرة مبسّطة (مستويين فقط: بند رئيسي + بنوده الفرعية المباشرة) لكل نطاق، تُستخدم من JS
+    // لبناء صندوق الفلاتر المتسلسل (الأمانة/البلديات ← البند الرئيسي ← البند الفرعي) دون أي
+    // طلب شبكة إضافي عند تغيّر الفلاتر
+    string BuildFilterTreeJson(IEnumerable<ExcelDashboard.Models.ViewModels.SectionNodeViewModel> sections)
+    {
+        var simplified = sections.Select(s => new
+        {
+            id = s.Id,
+            name = s.NameAr,
+            subs = s.SubSections.Select(sub => new { id = sub.Id, name = sub.NameAr }).ToList()
+        }).ToList();
+        return System.Text.Json.JsonSerializer.Serialize(simplified);
+    }
+}
+
+@if (!hasAnyScope)
+{
+    <div class="page-title">لوحة بيانات أمانة منطقة المدينة المنورة</div>
+    <div class="no-data-box" style="margin-top: 24px;">
+        <span class="nd-icon">@Icons.Svg("lock", "")</span>
+        لا تملك صلاحية الوصول إلى أي نطاق حالياً. يرجى التواصل مع مدير النظام.
+    </div>
+}
+else
+{
+    <div class="dashboard-layout home-shell">
+        <aside class="sidebar-nav scope-nav">
+            <div class="sidebar-nav-title">
+                <span>لوحة التنقّل</span>
+                <button class="nav-close" id="navClose" type="button" aria-label="إغلاق القائمة"><i class="bi bi-x-lg"></i></button>
+            </div>
+
+            <div class="sidebar-scroll">
+                <partial name="_PageNavSidebar" />
+            </div>
+
+            <a class="sidebar-upload-btn" href="@Url.Action("Upload", "Admin")">
+                @Icons.Svg("upload", "btn-svg") <span>رفع ملف Excel</span>
+            </a>
+        </aside>
+
+        <section class="dashboard-content">
+            @if (Model.OverviewKpis.Any())
+            {
+                <div class="revenue-kpis">
+                    @foreach (var kpi in Model.OverviewKpis)
+                    {
+                        bool isAmanah = kpi.ColorClass == "c1";
+                        <div class="revenue-kpi-card @(isAmanah ? "rk-amanah" : "rk-baladiyah")">
+                            <span class="rk-blob rk-blob-1"></span>
+                            <span class="rk-blob rk-blob-2"></span>
+
+                            <div class="rk-top">
+                                <div class="rk-icon">
+                                    @if (isAmanah)
+                                    {
+                                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M3 21h18M4 21V10.5L12 5l8 5.5V21M9 21v-6h6v6M4 10.5 12 5l8 5.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M9 13.2h.01M12 13.2h.01M15 13.2h.01" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                                        </svg>
+                                    }
+                                    else
+                                    {
+                                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M4 21V9l4-3 4 3v12M12 21V6l4-3 4 3v15M4 21h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M7 12h.01M7 16h.01M15 10h.01M15 14h.01M15 18h.01" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                                        </svg>
+                                    }
+                                </div>
+                                <span class="rk-tag">إجمالي الإيرادات</span>
+                            </div>
+
+                            <div class="rk-label">@kpi.Label</div>
+                            <div class="rk-value-row">
+                                <span class="rk-value" data-count="@kpi.Value.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)">0</span>
+                                @Icons.Riyal("rk-sar")
+                            </div>
+
+                            <div class="rk-bar"><span class="rk-bar-fill"></span></div>
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="dash-header-row">
+                <div class="dash-header-info">
+                    <div class="dash-icon-badge" id="dashIconBadge">@Icons.Svg("report", "")</div>
+                    <div>
+                        <div class="dash-section-title" id="dashTitleAr">عام</div>
+                        <div class="page-subtitle" id="dashTitleEn" style="margin-bottom:0;">بيانات الأمانة والبلدية</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="dashboardGrids">
+                <div class="kpi-grid-4" id="kpiGrid"></div>
+                <div class="charts-grid-3" id="chartsRow1" style="margin-bottom:18px;"></div>
+                <div class="charts-grid-3" id="chartsRow2"></div>
+            </div>
+
+            <div class="no-data-box" id="noDataBox" style="display:none;">
+                <span class="nd-icon">@Icons.Svg("inbox", "")</span>
+                لا توجد بيانات مستوردة لهذا البند بعد.
+            </div>
+        </section>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        window.FILTER_MODE = "home";
+        window.AMANAH_SECTIONS = @Html.Raw(BuildFilterTreeJson(Model.AmanahSections));
+        window.BALADIYAH_SECTIONS = @Html.Raw(BuildFilterTreeJson(Model.BaladiyahSections));
+    </script>
+    <script>
+        (function () {
+            var els = document.querySelectorAll(".rk-value");
+            var bars = document.querySelectorAll(".rk-bar-fill");
+            function formatNum(n) {
+                return Math.round(n).toLocaleString("en-US");
+            }
+            function animate(el, target, duration) {
+                var start = 0;
+                var startTime = null;
+                function step(ts) {
+                    if (!startTime) startTime = ts;
+                    var progress = Math.min((ts - startTime) / duration, 1);
+                    var eased = 1 - Math.pow(1 - progress, 3);
+                    el.textContent = formatNum(start + (target - start) * eased);
+                    if (progress < 1) requestAnimationFrame(step);
+                    else el.textContent = formatNum(target);
+                }
+                requestAnimationFrame(step);
+            }
+            els.forEach(function (el, i) {
+                var target = parseFloat(el.getAttribute("data-count")) || 0;
+                setTimeout(function () { animate(el, target, 1300); }, i * 120);
+            });
+            setTimeout(function () {
+                bars.forEach(function (b) { b.style.width = "100%"; });
+            }, 150);
+        })();
+    </script>
+    @if (hasAnyScope)
+    {
+        <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+        <script>
+            window.DEFAULT_DASHBOARD_URL = "@Url.Action("OverviewData", "Dashboard")";
+        </script>
+        <script src="~/js/section-dashboard.js" asp-append-version="true"></script>
+    }
+}

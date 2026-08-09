@@ -1,0 +1,71 @@
+@using ExcelDashboard.Helpers
+@{
+    // قائمة جانبية موحّدة بروابط صفحات النظام (بدل شجرة البنود/الإدارات القديمة) - تُستخدم
+    // بكل صفحات النظام (بدل شريط التنقّل العلوي المحذوف)، بنفس منطق تحديد الرابط النشط
+    // المستخدم سابقًا بشريط التنقّل العلوي (مع تصحيح قراءة "scope" من بيانات المسار بدل
+    // الاستعلام، لأن مسار Dashboard/Scope/{scope} يمرّرها كجزء من المسار لا كـ query string).
+    var currentController = ViewContext.RouteData.Values["controller"] as string ?? "";
+    var currentAction = ViewContext.RouteData.Values["action"] as string ?? "";
+    var currentScope = (ViewContext.RouteData.Values["scope"] as string) ?? Context.Request.Query["scope"].ToString();
+    var currentQueryMode = Context.Request.Query["mode"].ToString();
+
+    string LinkClass(string ctrl, string action, string scope = "")
+    {
+        bool match = string.Equals(currentController, ctrl, StringComparison.OrdinalIgnoreCase)
+                  && string.Equals(currentAction, action, StringComparison.OrdinalIgnoreCase)
+                  && (scope == "" || string.Equals(currentScope, scope, StringComparison.OrdinalIgnoreCase));
+        return match ? "sidebar-link page-nav-link active" : "sidebar-link page-nav-link";
+    }
+
+    var links = new[]
+    {
+        new { Url = Url.Action("Index", "Home"), Icon = "report", Label = "الرئيسية", Cls = LinkClass("Home", "Index") },
+        new { Url = Url.Action("Scope", "Dashboard", new { scope = "Amanah" }), Icon = "building", Label = "بيانات الإدارات", Cls = LinkClass("Dashboard", "Scope", "Amanah") },
+        new { Url = Url.Action("Scope", "Dashboard", new { scope = "Baladiyah" }), Icon = "city", Label = "بيانات البلديات", Cls = LinkClass("Dashboard", "Scope", "Baladiyah") },
+        new { Url = Url.Action("Overview", "Claims"), Icon = "alert", Label = "المطالبات والمديونيات", Cls = LinkClass("Claims", "Overview") },
+        new { Url = Url.Action("Followup", "Claims"), Icon = "trending", Label = "الطرح", Cls = LinkClass("Claims", "Followup") },
+        new { Url = Url.Action("GracePeriodExpiring", "Claims"), Icon = "contract", Label = "العقود التي تنتهي فترة سماحها خلال 3 أشهر", Cls = LinkClass("Claims", "GracePeriodExpiring") },
+        new { Url = Url.Action("TargetsComparisonBaladiyah", "Dashboard"), Icon = "city", Label = "مستهدفات البلديات", Cls = LinkClass("Dashboard", "TargetsComparisonBaladiyah") },
+        new { Url = Url.Action("TargetsComparisonFinance", "Dashboard"), Icon = "trending", Label = "مستهدفات المالية", Cls = LinkClass("Dashboard", "TargetsComparisonFinance") },
+    };
+
+    bool onContractPage = string.Equals(currentController, "Contract", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase);
+    bool contractAllActive = onContractPage && string.Equals(currentQueryMode, "all", StringComparison.OrdinalIgnoreCase);
+    bool contractSingleActive = onContractPage && !contractAllActive;
+}
+
+<div class="sidebar-group">
+    <div class="sidebar-nav-title">الصفحات</div>
+
+    @{ var firstHalf = links.Take(3); }
+    @foreach (var link in firstHalf)
+    {
+        <a href="@link.Url" class="@link.Cls">
+            <span>@Icons.Svg(link.Icon, "side-svg") @link.Label</span>
+        </a>
+    }
+
+    <details class="sidebar-dropdown" open="@onContractPage">
+        <summary class="sidebar-link page-nav-link@(onContractPage ? " active" : "")">
+            <span>@Icons.Svg("contract", "side-svg") طباعة العقود</span>
+            <i class="bi bi-chevron-down sidebar-dropdown-caret"></i>
+        </summary>
+        <div class="sidebar-dropdown-body">
+            <a href="@Url.Action("Index", "Contract")" class="sidebar-link page-nav-link sidebar-item-depth-1@(contractSingleActive ? " active" : "")">
+                <span>الاستعلام عن عقد وطباعته</span>
+            </a>
+            <a href="@Url.Action("Index", "Contract", new { mode = "all" })" class="sidebar-link page-nav-link sidebar-item-depth-1@(contractAllActive ? " active" : "")">
+                <span>طباعة جميع العقود</span>
+            </a>
+        </div>
+    </details>
+
+    @{ var secondHalf = links.Skip(3); }
+    @foreach (var link in secondHalf)
+    {
+        <a href="@link.Url" class="@link.Cls">
+            <span>@Icons.Svg(link.Icon, "side-svg") @link.Label</span>
+        </a>
+    }
+</div>

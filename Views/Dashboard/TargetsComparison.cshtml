@@ -1,0 +1,85 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "مقارنة المستهدفات";
+    ViewData["FullWidth"] = "1";
+    ViewData["HasSidebar"] = "1";
+}
+
+<div class="dashboard-layout home-shell">
+    <aside class="sidebar-nav scope-nav">
+        <div class="sidebar-nav-title">
+            <span>لوحة التنقّل</span>
+            <button class="nav-close" id="navClose" type="button" aria-label="إغلاق القائمة"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="sidebar-scroll">
+            <partial name="_PageNavSidebar" />
+        </div>
+    </aside>
+
+    <section class="dashboard-content">
+        <div class="nav-bar-row">
+            <a href="@Url.Action("Index", "Home")" class="back-btn"
+               onclick="if(document.referrer && document.referrer.indexOf(location.origin)===0){history.back();return false;}">
+                @Icons.Svg("back", "btn-svg") <span>رجوع</span>
+            </a>
+            <div class="breadcrumb-bar">
+                <a href="@Url.Action("Index", "Home")">الرئيسية</a>
+                <span>/</span>
+                <span>مقارنة المستهدفات</span>
+            </div>
+        </div>
+
+        <div class="dash-header-row">
+            <div class="dash-header-info">
+                <div class="dash-icon-badge">@Icons.Svg("trending", "")</div>
+                <div>
+                    <div class="page-title" style="margin-bottom:0;">مقارنة المستهدفات</div>
+                    <div class="page-subtitle" style="margin-bottom:0;">
+                        المحصّل مقابل المستهدف السنوي - وزارة المالية، والمفوتر مقابل المستهدف السنوي - وزارة البلديات والإسكان
+                    </div>
+                </div>
+            </div>
+            <div class="filter-select-wrap tc-entity-filter-wrap">
+                <i class="bi bi-building filter-icon"></i>
+                <select id="tcEntityFilter" class="filter-quarter-select">
+                    <option value="">كل الجهات (الأمانة + كل البلديات)</option>
+                </select>
+                <i class="bi bi-chevron-down filter-chevron"></i>
+            </div>
+            <div class="tc-upload-wrap">
+                <input type="file" id="tcMonthlyTargetInput" accept=".xlsx" hidden />
+                <button type="button" id="tcMonthlyTargetBtn" class="tc-upload-btn">
+                    <i class="bi bi-upload"></i>
+                    <span>رفع ملف المستهدف الشهري</span>
+                </button>
+                <span id="tcUploadStatus" class="tc-upload-status"></span>
+            </div>
+        </div>
+
+        <div id="tcContent">
+            <div class="tc-gauge-grid" id="tcGaugeGrid"></div>
+
+            <div class="charts-grid-3 tc-charts-2col" id="tcChartsRow"></div>
+
+            <div class="charts-grid-3 tc-charts-2col" id="tcItemsAnnualRow"></div>
+
+            <div class="charts-grid-3 tc-charts-2col" id="tcChartsRow2"></div>
+
+            <div class="charts-grid-3 tc-charts-2col" id="tcItemsTableRow"></div>
+        </div>
+
+        <div class="no-data-box" id="tcNoDataBox" style="display:none;">
+            <span class="nd-icon">@Icons.Svg("inbox", "")</span>
+            لا توجد بيانات مستهدفات مستوردة بعد. تأكد أن ملف الإكسل يحتوي على أعمدة "نوع الإيراد (تصنيف المستهدف)" و"المستهدف السنوي - وزارة المالية" و"المستهدف السنوي - وزارة البلديات والإسكان".
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script>
+        window.TC_DATA_URL = "@Url.Action("TargetsComparisonData", "Dashboard")";
+        window.TC_UPLOAD_MONTHLY_TARGET_URL = "@Url.Action("UploadMonthlyTarget", "Dashboard")";
+    </script>
+    <script src="~/js/targets-comparison.js" asp-append-version="true"></script>
+}

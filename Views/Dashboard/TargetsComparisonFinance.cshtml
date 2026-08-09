@@ -1,0 +1,72 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "مستهدفات وزارة المالية";
+    ViewData["FullWidth"] = "1";
+    ViewData["HasSidebar"] = "1";
+}
+
+<div class="dashboard-layout home-shell">
+    <aside class="sidebar-nav scope-nav">
+        <div class="sidebar-nav-title">
+            <span>لوحة التنقّل</span>
+            <button class="nav-close" id="navClose" type="button" aria-label="إغلاق القائمة"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="sidebar-scroll">
+            <partial name="_PageNavSidebar" />
+        </div>
+    </aside>
+
+    <section class="dashboard-content">
+        <div class="nav-bar-row">
+            <a href="@Url.Action("Index", "Home")" class="back-btn"
+               onclick="if(document.referrer && document.referrer.indexOf(location.origin)===0){history.back();return false;}">
+                @Icons.Svg("back", "btn-svg") <span>رجوع</span>
+            </a>
+            <div class="breadcrumb-bar">
+                <a href="@Url.Action("Index", "Home")">الرئيسية</a>
+                <span>/</span>
+                <span>مستهدفات وزارة المالية</span>
+            </div>
+        </div>
+
+        <div class="dash-header-row">
+            <div class="dash-header-info">
+                <div class="dash-icon-badge">@Icons.Svg("trending", "")</div>
+                <div>
+                    <div class="page-title" style="margin-bottom:0;">مستهدفات وزارة المالية</div>
+                    <div class="page-subtitle" style="margin-bottom:0;">
+                        الإيراد المحصّل مقابل المستهدف السنوي لكل بند - الأمانة والبلديات
+                    </div>
+                </div>
+            </div>
+            <div class="tc-upload-wrap">
+                <input type="file" id="ftUploadInput" accept=".xlsx" hidden />
+                <button type="button" id="ftUploadBtn" class="tc-upload-btn">
+                    <i class="bi bi-upload"></i>
+                    <span>رفع ملف مستهدف المالية</span>
+                </button>
+                <span id="ftUploadStatus" class="tc-upload-status"></span>
+            </div>
+        </div>
+
+        <div id="ftContent">
+            <div class="tc-gauge-grid" id="ftGaugeRow" style="margin-bottom:14px;"></div>
+
+            <div class="charts-grid-3 tc-charts-2col" id="ftItemsRow"></div>
+        </div>
+
+        <div class="no-data-box" id="ftNoDataBox" style="display:none;">
+            <span class="nd-icon">@Icons.Svg("inbox", "")</span>
+            لا توجد بيانات مستهدف مالية مستوردة بعد. اضغط "رفع ملف مستهدف المالية" أعلى الصفحة للبدء.
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script>
+        window.FT_DATA_URL = "@Url.Action("TargetsComparisonFinanceData", "Dashboard")";
+        window.FT_UPLOAD_URL = "@Url.Action("UploadFinanceTarget", "Dashboard")";
+    </script>
+    <script src="~/js/targets-finance.js" asp-append-version="true"></script>
+}

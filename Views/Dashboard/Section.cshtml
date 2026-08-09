@@ -1,0 +1,69 @@
+@model ExcelDashboard.Models.ViewModels.SectionDashboardViewModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = Model.SectionNameAr;
+    // نفس تنسيق بقية صفحات اللوحة: قائمة جانبية بروابط الصفحات + عرض كامل
+    ViewData["FullWidth"] = "1";
+    ViewData["HasSidebar"] = "1";
+}
+
+<div class="dashboard-layout home-shell">
+    <aside class="sidebar-nav scope-nav">
+        <div class="sidebar-nav-title">
+            <span>لوحة التنقّل</span>
+            <button class="nav-close" id="navClose" type="button" aria-label="إغلاق القائمة"><i class="bi bi-x-lg"></i></button>
+        </div>
+
+        <div class="sidebar-scroll">
+            <partial name="_PageNavSidebar" />
+        </div>
+
+        <a class="sidebar-upload-btn" href="@Url.Action("Upload", "Admin")">
+            @Icons.Svg("upload", "btn-svg") <span>رفع ملف Excel</span>
+        </a>
+    </aside>
+
+    <section class="dashboard-content">
+        <div class="nav-bar-row">
+            <a href="@Url.Action("Index", "Home")" class="back-btn"
+               onclick="if(document.referrer && document.referrer.indexOf(location.origin)===0){history.back();return false;}">
+                @Icons.Svg("back", "btn-svg") <span>رجوع</span>
+            </a>
+            <div class="breadcrumb-bar">
+                <a href="@Url.Action("Index", "Home")">الرئيسية</a>
+                <span>/</span>
+                <span>@Model.SectionNameAr</span>
+            </div>
+        </div>
+
+        <div class="dash-header-row">
+            <div class="dash-header-info">
+                <div class="dash-icon-badge">@Icons.Svg("report", "")</div>
+                <div>
+                    <div class="page-title" style="margin-bottom:0;">@Model.SectionNameAr</div>
+                    <div class="page-subtitle" style="margin-bottom:0;">@Model.SectionNameEn</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="dashboardGrids" style="display:@(Model.HasData ? "" : "none");">
+            <div class="kpi-grid-4" id="kpiGrid"></div>
+            <div class="charts-grid-3" id="chartsRow1" style="margin-bottom:18px;"></div>
+            <div class="charts-grid-3" id="chartsRow2"></div>
+        </div>
+
+        <div class="no-data-box" id="noDataBox" style="display:@(Model.HasData ? "none" : "");">
+            <span class="nd-icon">@Icons.Svg("inbox", "")</span>
+            لا توجد بيانات مستوردة لهذا البند بعد.
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script>
+        window.SECTION_ID = @Model.SectionId;
+        window.SECTION_DATA_URL = "@Url.Action("SectionData", "Dashboard", new { sectionId = Model.SectionId })";
+    </script>
+    <script src="~/js/section-dashboard.js" asp-append-version="true"></script>
+}
