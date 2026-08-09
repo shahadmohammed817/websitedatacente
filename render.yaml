@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: madinah-dashboard-viewer
+    runtime: docker
+    plan: free
+    envVars:
+      - key: READONLY_MODE
+        value: "true"
+    healthCheckPath: /
