@@ -17,6 +17,7 @@ namespace ExcelDashboard.Data
         public DbSet<FinanceItemTarget> FinanceItemTargets => Set<FinanceItemTarget>();
         public DbSet<ClaimRecord> ClaimRecords => Set<ClaimRecord>();
         public DbSet<DebtRecord> DebtRecords => Set<DebtRecord>();
+        public DbSet<ContractRecord> ContractRecords => Set<ContractRecord>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -91,6 +92,13 @@ namespace ExcelDashboard.Data
             {
                 e.HasIndex(r => r.Department);
                 e.HasIndex(r => r.DebtDate);
+            });
+
+            modelBuilder.Entity<ContractRecord>(e =>
+            {
+                e.HasIndex(r => r.GeneralDepartment);
+                e.HasIndex(r => r.ContractType);
+                e.HasIndex(r => r.Status);
             });
 
             modelBuilder.Entity<DashboardRecord>(e =>

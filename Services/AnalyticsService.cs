@@ -286,6 +286,82 @@ namespace ExcelDashboard.Services
         public List<FinanceTargetItemRow> BaladiyahItems { get; set; } = new();
     }
 
+    /// <summary>صف نوع عقد واحد (كرت) بصفحة "الطرح" - عدد وقيمة العقود من هذا النوع</summary>
+    public class TarhTypeSummaryRow
+    {
+        public string TypeLabel { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal TotalValue { get; set; }
+    }
+
+    /// <summary>صف إدارة عامة واحدة بصفحة "الطرح" - عدد وقيمة عقودها</summary>
+    public class TarhDeptRow
+    {
+        public string DeptLabel { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal TotalValue { get; set; }
+    }
+
+    /// <summary>صف نشاط واحد (بند فرعي) بصفحة "الطرح" - عدد وقيمة عقوده ضمن إدارة معيّنة</summary>
+    public class TarhActivityRow
+    {
+        public string ActivityLabel { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal TotalValue { get; set; }
+    }
+
+    /// <summary>صف سنة واحدة بصفحة "الطرح" - عدد العقود المبرومة بهذه السنة</summary>
+    public class TarhYearRow
+    {
+        public int Year { get; set; }
+        public int Count { get; set; }
+    }
+
+    /// <summary>فرصة فتحت مظاريفها منذ 30 يومًا فأكثر ولا يوجد لها عقد بعد - بصفحة "الطرح"</summary>
+    public class TarhAtRiskRow
+    {
+        public string? OpportunityNumber { get; set; }
+        public string? OpportunityName { get; set; }
+        public DateTime EnvelopeOpeningDate { get; set; }
+        public int DaysSinceEnvelope { get; set; }
+        public string? GeneralDepartment { get; set; }
+        public string? Status { get; set; }
+    }
+
+    /// <summary>
+    /// بيانات صفحة "الطرح": كروت أنواع العقود، توزيع الإدارات العامة، نسبة العقود المبرومة،
+    /// البنود الفرعية (المحفظة الفرعية) ضمن إدارة معيّنة، والاتجاه الزمني للعقود المبرومة،
+    /// والفرص المتأخرة (فتح مظاريف قبل 30 يومًا فأكثر بلا عقد) - كل ذلك قابل للتصفية بالسنة
+    /// والربع والإدارة العامة وحالة العقد ورقم العقد معًا.
+    /// </summary>
+    public class TarhPageData
+    {
+        public bool HasData { get; set; }
+
+        public List<TarhTypeSummaryRow> TypeSummary { get; set; } = new();
+        public List<TarhDeptRow> DeptChart { get; set; } = new();
+
+        public int TotalCount { get; set; }
+        public int FinalizedCount { get; set; }
+        public decimal FinalizedPercent { get; set; }
+
+        /// <summary>إجمالي عدد الفرص (رقم الفرصة) ضمن التصفية الحالية</summary>
+        public int TotalOpportunities { get; set; }
+
+        /// <summary>الإدارة العامة التي تُعرَض بنودها الفرعية حاليًا (المُختارة بالفلتر، أو "الإدارة العامة لمحافظ الاستثمارات التجارية" افتراضيًا)</summary>
+        public string ActivitiesDepartment { get; set; } = string.Empty;
+        public List<TarhActivityRow> ActivityChart { get; set; } = new();
+
+        public List<TarhYearRow> YearlyFinalizedTrend { get; set; } = new();
+
+        /// <summary>الفرص التي فتحت مظاريفها منذ 30 يومًا فأكثر ولا يوجد لها رقم عقد بعد (الأقدم أولاً)</summary>
+        public List<TarhAtRiskRow> AtRiskOpportunities { get; set; } = new();
+
+        public List<string> DepartmentOptions { get; set; } = new();
+        public List<string> StatusOptions { get; set; } = new();
+        public List<int> YearOptions { get; set; } = new();
+    }
+
     public interface IAnalyticsService
     {
         /// <summary>
@@ -295,6 +371,9 @@ namespace ExcelDashboard.Services
 
         /// <summary>بيانات صفحة "مستهدفات وزارة المالية" (أمانة/بلديات، محصّل مقابل مستهدف سنوي لكل بند)</summary>
         Task<FinanceTargetsPageData> GetFinanceTargetsPageDataAsync();
+
+        /// <summary>بيانات صفحة "الطرح" (كروت أنواع العقود، توزيع الإدارات، نسبة الإبرام، البنود الفرعية، الاتجاه الزمني، الفرص المتأخرة)</summary>
+        Task<TarhPageData> GetTarhDataAsync(string? department, string? status, string? contractNumber, int? year, int? quarter);
 
         Task<SectionDashboardData> GetSectionDataAsync(int sectionId, bool includeSubSections = true, string? quarter = null, string? contractNumber = null);
 
@@ -1281,6 +1360,113 @@ namespace ExcelDashboard.Services
             result.BaladiyahTargetTotal = baladiyahTargetByMainItem.Values.Sum();
             result.BaladiyahAchievementPercent = result.BaladiyahTargetTotal > 0
                 ? Math.Round(result.BaladiyahCollectedTotal / result.BaladiyahTargetTotal * 100, 1) : 0;
+
+            return result;
+        }
+
+        // حالة العقد التي تعني "مبرومة" بلغة صفحة الطرح
+        private const string FinalizedStatus = "تم إبرام العقد";
+
+        // الإدارة العامة الافتراضية للبنود الفرعية (الأنشطة) عند عدم اختيار إدارة من الفلتر
+        private const string DefaultActivitiesDepartment = "الإدارة العامة لمحافظ الاستثمارات التجارية";
+
+        public async Task<TarhPageData> GetTarhDataAsync(string? department, string? status, string? contractNumber, int? year, int? quarter)
+        {
+            var all = await _db.ContractRecords.ToListAsync();
+            var result = new TarhPageData { HasData = all.Count > 0 };
+            if (!result.HasData) return result;
+
+            result.DepartmentOptions = all.Select(r => r.GeneralDepartment).Where(d => !string.IsNullOrWhiteSpace(d)).Distinct().OrderBy(d => d).ToList()!;
+            result.StatusOptions = all.Select(r => r.Status).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().OrderBy(s => s).ToList()!;
+            result.YearOptions = all.Select(r => r.ContractYear).Where(y => y.HasValue).Select(y => y!.Value).Distinct().OrderByDescending(y => y).ToList();
+
+            bool MatchesBase(ContractRecord r) =>
+                (string.IsNullOrWhiteSpace(department) || r.GeneralDepartment == department) &&
+                (string.IsNullOrWhiteSpace(contractNumber) || (r.ContractNumber ?? "").Contains(contractNumber, StringComparison.OrdinalIgnoreCase)) &&
+                (!year.HasValue || r.ContractYear == year) &&
+                (!quarter.HasValue || r.Quarter == quarter);
+
+            // بلا فلتر الحالة - يُستخدم لخط الاتجاه الزمني الذي يفرض حالة "مبرومة" دائمًا بصرف
+            // النظر عن فلتر الحالة المختار بالصفحة
+            var baseFiltered = all.Where(MatchesBase).ToList();
+
+            // مع فلتر الحالة - يُستخدم لبقية عناصر الصفحة
+            var filtered = baseFiltered.Where(r => string.IsNullOrWhiteSpace(status) || r.Status == status).ToList();
+
+            result.TotalOpportunities = filtered
+                .Select(r => r.OpportunityNumber)
+                .Where(o => !string.IsNullOrWhiteSpace(o))
+                .Distinct()
+                .Count();
+
+            decimal EffectiveValue(ContractRecord r) => r.ContractValue ?? r.AnnualRent ?? 0;
+
+            // رقم العقد لا يُعبَّأ بالملف إلا للعقود "تم إبرام العقد" - لبقية الحالات كل صف يُعتبر
+            // عقدًا مستقلاً بحد ذاته. لذا يُحسَب "عدد العقود" دائمًا بعدّ مفاتيح مميّزة: رقم العقد
+            // نفسه إن وُجد (لتفادي عدّ نفس العقد المُبرَم أكثر من مرة إن تكرّر بعدة صفوف)، وإلا
+            // معرّف الصف نفسه (كل صف بلا رقم عقد = عقد مستقل).
+            string DedupKey(ContractRecord r) => !string.IsNullOrWhiteSpace(r.ContractNumber) ? r.ContractNumber! : "row-" + r.Id;
+            int DistinctCount(IEnumerable<ContractRecord> recs) => recs.Select(DedupKey).Distinct().Count();
+
+            result.TypeSummary = filtered
+                .Where(r => !string.IsNullOrWhiteSpace(r.ContractType))
+                .GroupBy(r => r.ContractType!)
+                .Select(g => new TarhTypeSummaryRow { TypeLabel = g.Key, Count = DistinctCount(g), TotalValue = g.Sum(EffectiveValue) })
+                .OrderByDescending(x => x.Count)
+                .ToList();
+
+            result.DeptChart = filtered
+                .GroupBy(r => string.IsNullOrWhiteSpace(r.GeneralDepartment) ? "غير محدد" : r.GeneralDepartment!)
+                .Select(g => new TarhDeptRow { DeptLabel = g.Key, Count = DistinctCount(g), TotalValue = g.Sum(EffectiveValue) })
+                .OrderByDescending(x => x.TotalValue)
+                .ToList();
+
+            result.TotalCount = DistinctCount(filtered);
+            result.FinalizedCount = DistinctCount(filtered.Where(r => r.Status == FinalizedStatus));
+            result.FinalizedPercent = result.TotalCount > 0
+                ? Math.Round((decimal)result.FinalizedCount / result.TotalCount * 100, 1) : 0;
+
+            result.ActivitiesDepartment = string.IsNullOrWhiteSpace(department) ? DefaultActivitiesDepartment : department;
+            result.ActivityChart = filtered
+                .Where(r => r.GeneralDepartment == result.ActivitiesDepartment && !string.IsNullOrWhiteSpace(r.SubPortfolio))
+                .GroupBy(r => r.SubPortfolio!)
+                .Select(g => new TarhActivityRow { ActivityLabel = g.Key, Count = DistinctCount(g), TotalValue = g.Sum(EffectiveValue) })
+                .OrderByDescending(x => x.Count)
+                .ToList();
+
+            result.YearlyFinalizedTrend = baseFiltered
+                .Where(r => r.Status == FinalizedStatus && r.ContractYear.HasValue)
+                .GroupBy(r => r.ContractYear!.Value)
+                .Select(g => new TarhYearRow { Year = g.Key, Count = DistinctCount(g) })
+                .OrderBy(x => x.Year)
+                .ToList();
+
+            // الفرص المتأخرة: فتحت مظاريفها منذ 30 يومًا فأكثر ولا يوجد لها رقم عقد بعد. "سنة
+            // العقد"/"الربع" غير مُعبَّأين لهذه الصفوف أصلاً (لا عقد = لا تاريخ عقد)، فتُصفَّى هنا
+            // بسنة/ربع "فتح المظاريف" نفسها بدل سنة/ربع العقد حتى تبقى الفلاتر مفيدة لهذه القائمة
+            var todayUtc = DateTime.UtcNow.Date;
+            var envelopeThreshold = todayUtc.AddDays(-30);
+            result.AtRiskOpportunities = all
+                .Where(r =>
+                    (string.IsNullOrWhiteSpace(department) || r.GeneralDepartment == department) &&
+                    (string.IsNullOrWhiteSpace(contractNumber) || (r.ContractNumber ?? "").Contains(contractNumber, StringComparison.OrdinalIgnoreCase)) &&
+                    (string.IsNullOrWhiteSpace(status) || r.Status == status) &&
+                    string.IsNullOrWhiteSpace(r.ContractNumber) &&
+                    r.EnvelopeOpeningDate.HasValue &&
+                    r.EnvelopeOpeningDate.Value.Date <= envelopeThreshold &&
+                    (!year.HasValue || r.EnvelopeOpeningDate.Value.Year == year) &&
+                    (!quarter.HasValue || (((r.EnvelopeOpeningDate.Value.Month - 1) / 3) + 1) == quarter))
+                .OrderBy(r => r.EnvelopeOpeningDate)
+                .Select(r => new TarhAtRiskRow
+                {
+                    OpportunityNumber = r.OpportunityNumber,
+                    OpportunityName = r.OpportunityName,
+                    EnvelopeOpeningDate = r.EnvelopeOpeningDate!.Value,
+                    DaysSinceEnvelope = (int)(todayUtc - r.EnvelopeOpeningDate.Value.Date).TotalDays,
+                    GeneralDepartment = r.GeneralDepartment,
+                    Status = r.Status
+                })
+                .ToList();
 
             return result;
         }

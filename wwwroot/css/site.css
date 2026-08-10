@@ -869,6 +869,9 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
 .tc-small-card .echart-box { height: 200px; }
 .ft-items-card .echart-box { height: 340px; }
 
+/* شبكة كروت صفحة "الطرح" - عدد كروت متغيّر (فرص + أنواع عقود)، تلتف تلقائيًا بدل عمود ثابت */
+.tarh-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 22px; }
+
 /* وضع "عرض فقط" (النسخة المنشورة للفريق) - إخفاء كل أزرار/نماذج رفع الملفات، مع بقاء
    نقاط الحماية الفعلية على مستوى السيرفر (كل نقطة POST محمية بفحص AppMode.ReadOnly) */
 body.read-only-mode .sidebar-upload-btn,

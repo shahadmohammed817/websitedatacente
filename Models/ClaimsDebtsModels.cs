@@ -81,4 +81,54 @@ namespace ExcelDashboard.Models
 
         public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
     }
+
+    /// <summary>
+    /// سجل "عقد" واحد بصفحة "الطرح" - مستورد من ورقة "الطرح" بملف "ملف الطرح...xlsx".
+    /// إعادة رفع الملف تستبدل كل العقود القديمة بالكامل (بلا تراكم).
+    /// </summary>
+    public class ContractRecord
+    {
+        public int Id { get; set; }
+
+        [MaxLength(100)]
+        public string? OpportunityNumber { get; set; } // رقم الفرصة
+
+        [MaxLength(400)]
+        public string? OpportunityName { get; set; } // اسم الفرصة
+
+        [MaxLength(150)]
+        public string? Status { get; set; } // الحالة (حالة العقد) - "تم إبرام العقد" تعني مبرومة
+
+        [MaxLength(100)]
+        public string? ContractNumber { get; set; } // رقم العقد
+
+        public DateTime? ContractDate { get; set; } // تاريخ العقد
+
+        public int? ContractYear { get; set; } // سنة العقد
+
+        public int? Quarter { get; set; } // الربع (1-4) - محسوب من تاريخ العقد وقت الاستيراد
+
+        public DateTime? EnvelopeOpeningDate { get; set; } // فتح المظاريف - لرصد الفرص المتأخرة بلا عقد بعد 30 يومًا
+
+        public decimal? AnnualRent { get; set; } // الأجرة السنوية - قيمة عقود الأبراج/الممرات/التأجير المباشر
+
+        public decimal? ContractValue { get; set; } // قيمة العقد - قيمة عقود الاستثمار غالبًا
+
+        [MaxLength(250)]
+        public string? GeneralDepartment { get; set; } // الإدارة العامة (فارغ/"0" بالملف لعقود الأبراج/الممرات/التأجير المباشر)
+
+        [MaxLength(250)]
+        public string? Activity { get; set; } // الأنشطة (غير مستخدم حاليًا بصفحة الطرح)
+
+        [MaxLength(250)]
+        public string? SubPortfolio { get; set; } // المحفظة الفرعية - "البند الفرعي" بلغة صفحة الطرح
+
+        [MaxLength(100)]
+        public string? ContractType { get; set; } // نوع العقد (استثمار / الأبراج / الممرات / تأجير مباشر)
+
+        [MaxLength(100)]
+        public string? GracePeriod { get; set; } // فترة السماح
+
+        public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+    }
 }

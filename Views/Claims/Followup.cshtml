@@ -25,8 +25,6 @@
             <div class="breadcrumb-bar">
                 <a href="@Url.Action("Index", "Home")">الرئيسية</a>
                 <span>/</span>
-                <a href="@Url.Action("Overview", "Claims")">المطالبات والمديونيات</a>
-                <span>/</span>
                 <span>الطرح</span>
             </div>
         </div>
@@ -36,25 +34,34 @@
                 <div class="dash-icon-badge">@Icons.Svg("trending", "")</div>
                 <div>
                     <div class="page-title" style="margin-bottom:0;">الطرح</div>
-                    <div class="page-subtitle" style="margin-bottom:0;">الحالات التي تحتاج متابعة عاجلة، وتحليلات إضافية لسرعة الإنجاز</div>
+                    <div class="page-subtitle" style="margin-bottom:0;">عقود الطرح - حسب النوع والإدارة العامة والنشاط وحالة الإبرام</div>
                 </div>
             </div>
-            <a href="@Url.Action("Upload", "Claims")" class="tc-upload-btn">
-                @Icons.Svg("upload", "") <span>رفع ملف Excel</span>
-            </a>
+            <div class="tc-upload-wrap read-only-hide">
+                <input type="file" id="tarhUploadInput" accept=".xlsx" hidden />
+                <button type="button" id="tarhUploadBtn" class="tc-upload-btn">
+                    <i class="bi bi-upload"></i>
+                    <span>رفع ملف الطرح</span>
+                </button>
+                <span id="tarhUploadStatus" class="tc-upload-status"></span>
+            </div>
         </div>
 
-        <div id="claimsFollowupContent">
-            <div class="tc-gauge-grid" id="cfGaugeRow" style="margin-bottom:14px;"></div>
+        <div id="tarhFilterBar" class="dash-filter-bar" style="margin-bottom:14px;"></div>
 
-            <div class="charts-grid-3" id="cfChartsRow1" style="margin-bottom:12px;"></div>
-            <div class="charts-grid-3" id="cfChartsRow2" style="margin-bottom:12px;"></div>
-            <div class="charts-grid-3 tc-row-single" id="cfChartsRow3"></div>
+        <div id="tarhContent">
+            <div class="tarh-kpi-grid" id="tarhKpiGrid"></div>
+
+            <div class="charts-grid-3 tc-charts-2col" id="tarhChartsRow1" style="margin-bottom:12px;"></div>
+            <div class="charts-grid-3 tc-row-single" id="tarhChartsRow2" style="margin-bottom:12px;"></div>
+            <div class="charts-grid-3 tc-row-single" id="tarhChartsRow3" style="margin-bottom:12px;"></div>
+
+            <div id="tarhAtRiskSection"></div>
         </div>
 
-        <div class="no-data-box" id="cfNoDataBox" style="display:none;">
+        <div class="no-data-box" id="tarhNoDataBox" style="display:none;">
             <span class="nd-icon">@Icons.Svg("inbox", "")</span>
-            لا توجد بيانات مطالبات أو مديونيات مستوردة بعد. اضغط "رفع ملف Excel" أعلى الصفحة للبدء.
+            لا توجد بيانات عقود مستوردة بعد. اضغط "رفع ملف الطرح" أعلى الصفحة للبدء.
         </div>
     </section>
 </div>
@@ -62,7 +69,8 @@
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
     <script>
-        window.CD_FOLLOWUP_DATA_URL = "@Url.Action("FollowupData", "Claims")";
+        window.TARH_DATA_URL = "@Url.Action("TarhData", "Claims")";
+        window.TARH_UPLOAD_URL = "@Url.Action("UploadContracts", "Claims")";
     </script>
-    <script src="~/js/claims-followup.js" asp-append-version="true"></script>
+    <script src="~/js/tarh.js" asp-append-version="true"></script>
 }

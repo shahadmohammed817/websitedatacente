@@ -21,6 +21,7 @@ builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<IMonthlyTargetImportService, MonthlyTargetImportService>();
 builder.Services.AddScoped<IFinanceTargetImportService, FinanceTargetImportService>();
 builder.Services.AddScoped<IClaimsDebtsImportService, ClaimsDebtsImportService>();
+builder.Services.AddScoped<IContractImportService, ContractImportService>();
 builder.Services.AddScoped<IClaimsDebtsAnalyticsService, ClaimsDebtsAnalyticsService>();
 builder.Services.AddScoped<IAmanahInvestmentDashboardService, AmanahInvestmentDashboardService>();
 
@@ -235,6 +236,46 @@ using (var scope = app.Services.CreateScope())
         cmd.ExecuteNonQuery();
     }
 
+    // جدول "عقود الطرح" (صفحة "الطرح") - قد لا يكون موجودًا في قاعدة بيانات قديمة
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ContractRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_ContractRecords PRIMARY KEY AUTOINCREMENT,
+            OpportunityNumber TEXT NULL,
+            OpportunityName TEXT NULL,
+            Status TEXT NULL,
+            ContractNumber TEXT NULL,
+            ContractDate TEXT NULL,
+            ContractYear INTEGER NULL,
+            Quarter INTEGER NULL,
+            EnvelopeOpeningDate TEXT NULL,
+            AnnualRent REAL NULL,
+            ContractValue REAL NULL,
+            GeneralDepartment TEXT NULL,
+            Activity TEXT NULL,
+            SubPortfolio TEXT NULL,
+            ContractType TEXT NULL,
+            GracePeriod TEXT NULL,
+            ImportedAt TEXT NOT NULL
+        );";
+        cmd.ExecuteNonQuery();
+    }
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "CREATE INDEX IF NOT EXISTS IX_ContractRecords_GeneralDepartment ON ContractRecords (GeneralDepartment);";
+        cmd.ExecuteNonQuery();
+    }
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "CREATE INDEX IF NOT EXISTS IX_ContractRecords_ContractType ON ContractRecords (ContractType);";
+        cmd.ExecuteNonQuery();
+    }
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "CREATE INDEX IF NOT EXISTS IX_ContractRecords_Status ON ContractRecords (Status);";
+        cmd.ExecuteNonQuery();
+    }
+
     // عمود "البند" (ItemCategory) أُضيف لاحقًا لجدولَي ClaimRecords/DebtRecords - نضيفه يدويًا
     // إن كانت القاعدة أُنشئت قبل إضافته (بنفس أسلوب ترقية DashboardRecords أعلاه)
     void AddColumnIfMissing(string table, string column, string sqlType)
@@ -253,6 +294,9 @@ using (var scope = app.Services.CreateScope())
         alterCmd.ExecuteNonQuery();
     }
 
+    AddColumnIfMissing("ContractRecords", "SubPortfolio", "TEXT NULL");
+    AddColumnIfMissing("ContractRecords", "Quarter", "INTEGER NULL");
+    AddColumnIfMissing("ContractRecords", "EnvelopeOpeningDate", "TEXT NULL");
     AddColumnIfMissing("ClaimRecords", "ItemCategory", "TEXT NULL");
     AddColumnIfMissing("DebtRecords", "ItemCategory", "TEXT NULL");
     AddColumnIfMissing("ClaimRecords", "ContractNumber", "TEXT NULL");
