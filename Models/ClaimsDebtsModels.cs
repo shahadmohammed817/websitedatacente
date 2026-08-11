@@ -110,6 +110,8 @@ namespace ExcelDashboard.Models
 
         public DateTime? EnvelopeOpeningDate { get; set; } // فتح المظاريف - لرصد الفرص المتأخرة بلا عقد بعد 30 يومًا
 
+        public DateTime? AwardDate { get; set; } // الترسية / الإلغاء (عند كونه تاريخًا فعليًا لا نص إلغاء) - مرحلة "الترسية" برحلة الفرصة
+
         public decimal? AnnualRent { get; set; } // الأجرة السنوية - قيمة عقود الأبراج/الممرات/التأجير المباشر
 
         public decimal? ContractValue { get; set; } // قيمة العقد - قيمة عقود الاستثمار غالبًا

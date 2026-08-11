@@ -53,14 +53,16 @@ namespace ExcelDashboard.Services
         }
 
         // قيم نصية بالملف تعني عمليًا "بلا قيمة" (خانة فارغة معروضة كصفر، أو خطأ صيغة إكسل، أو
-        // شرطة بديلة لرقم العقد بالعقود التي لم تُبرَم بعد) - "--" تحديدًا هي الشكل الفعلي
-        // لعمود "رقم العقد" بكل الصفوف التي حالتها ليست "تم إبرام العقد"
-        private static readonly HashSet<string> PlaceholderEmptyValues = new() { "0", "#N/A", "-", "--" };
+        // شرطة/سلسلة شرطات بديلة لحقل لم يُعبَّأ بعد - لوحظ هذا بعمودَي "رقم العقد" (بشرطتين)
+        // و"رقم الفرصة" (بسلسلة أطول من الشرطات))
+        private static readonly HashSet<string> PlaceholderEmptyValues = new() { "0", "#N/A" };
 
         private static string? NormalizeText(string raw)
         {
             var t = raw.Trim();
             if (string.IsNullOrEmpty(t) || PlaceholderEmptyValues.Contains(t)) return null;
+            // أي نص مكوّن من شرطات فقط (-، --، ---...) يعني عمليًا "بلا قيمة"
+            if (t.Length > 0 && t.All(ch => ch == '-')) return null;
             return t;
         }
 
@@ -104,6 +106,7 @@ namespace ExcelDashboard.Services
             var colContractDate = Col("تاريخ العقد");
             var colContractYear = Col("سنة العقد");
             var colEnvelope = Col("فتح المظاريف");
+            var colAward = Col("الترسية / الإلغاء");
             var colAnnualRent = Col("الأجرة السنوية");
             var colContractValue = Col("قيمة العقد");
             var colGeneralDept = Col("الإدارة العامة");
@@ -152,6 +155,15 @@ namespace ExcelDashboard.Services
                     if (!cell.IsEmpty() && cell.TryGetValue<DateTime>(out var ed)) envelopeDate = ed;
                 }
 
+                // عمود "الترسية / الإلغاء" يحمل تاريخًا فعليًا للعقود التي رُسِّيَت، أو نصًا ("--")
+                // للحالات الأخرى - نقرأه كتاريخ فقط عند صلاحيته، ونتجاهله (null) غير ذلك
+                DateTime? awardDate = null;
+                if (colAward > 0)
+                {
+                    var cell = row.Cell(colAward);
+                    if (!cell.IsEmpty() && cell.TryGetValue<DateTime>(out var ad)) awardDate = ad;
+                }
+
                 decimal? annualRent = null;
                 if (colAnnualRent > 0)
                 {
@@ -168,7 +180,7 @@ namespace ExcelDashboard.Services
 
                 result.Add(new ContractRecord
                 {
-                    OpportunityNumber = string.IsNullOrEmpty(oppNumber) ? null : oppNumber,
+                    OpportunityNumber = NormalizeText(oppNumber),
                     OpportunityName = colOppName > 0 ? NormalizeText(row.Cell(colOppName).GetString()) : null,
                     Status = NormalizeStatus(row.Cell(colStatus).GetString()),
                     ContractNumber = NormalizeText(contractNumber),
@@ -176,6 +188,7 @@ namespace ExcelDashboard.Services
                     ContractYear = contractYear,
                     Quarter = quarter,
                     EnvelopeOpeningDate = envelopeDate,
+                    AwardDate = awardDate,
                     AnnualRent = annualRent,
                     ContractValue = contractValue,
                     GeneralDepartment = colGeneralDept > 0 ? NormalizeText(row.Cell(colGeneralDept).GetString()) : null,

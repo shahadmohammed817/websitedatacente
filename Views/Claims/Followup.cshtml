@@ -17,7 +17,7 @@
     </aside>
 
     <section class="dashboard-content">
-        <div class="nav-bar-row">
+        <div class="nav-bar-row print-hide">
             <a href="@Url.Action("Index", "Home")" class="back-btn"
                onclick="if(document.referrer && document.referrer.indexOf(location.origin)===0){history.back();return false;}">
                 @Icons.Svg("back", "btn-svg") <span>رجوع</span>
@@ -29,12 +29,12 @@
             </div>
         </div>
 
-        <div class="dash-header-row">
+        <div class="dash-header-row print-hide">
             <div class="dash-header-info">
                 <div class="dash-icon-badge">@Icons.Svg("trending", "")</div>
                 <div>
                     <div class="page-title" style="margin-bottom:0;">الطرح</div>
-                    <div class="page-subtitle" style="margin-bottom:0;">عقود الطرح - حسب النوع والإدارة العامة والنشاط وحالة الإبرام</div>
+                    <div class="page-subtitle" style="margin-bottom:0;">عقود الطرح - حسب النوع والإدارة العامة وحالة الإبرام</div>
                 </div>
             </div>
             <div class="tc-upload-wrap read-only-hide">
@@ -47,21 +47,64 @@
             </div>
         </div>
 
-        <div id="tarhFilterBar" class="dash-filter-bar" style="margin-bottom:14px;"></div>
-
-        <div id="tarhContent">
-            <div class="tarh-kpi-grid" id="tarhKpiGrid"></div>
-
-            <div class="charts-grid-3 tc-charts-2col" id="tarhChartsRow1" style="margin-bottom:12px;"></div>
-            <div class="charts-grid-3 tc-row-single" id="tarhChartsRow2" style="margin-bottom:12px;"></div>
-            <div class="charts-grid-3 tc-row-single" id="tarhChartsRow3" style="margin-bottom:12px;"></div>
-
-            <div id="tarhAtRiskSection"></div>
+        <!-- رأس خاص بالطباعة فقط (مخفي على الشاشة) -->
+        <div class="contract-print-header">
+            <div class="contract-print-logo-row">
+                <span>أمانة منطقة المدينة المنورة - عقود الطرح</span>
+            </div>
+            <div class="contract-print-title">تقرير عقود الطرح</div>
+            <div class="contract-print-date">تاريخ الطباعة: <span id="tarhPrintDate"></span></div>
         </div>
 
-        <div class="no-data-box" id="tarhNoDataBox" style="display:none;">
+        <div id="tarhFilterBar" class="dash-filter-bar print-hide" style="margin-bottom:14px;"></div>
+
+        <div class="contract-actions print-hide" style="margin-bottom:14px;">
+            <button type="button" class="contract-action-btn" id="tarhExportExcelBtn">
+                @Icons.Svg("excel", "") <span>تصدير Excel</span>
+            </button>
+            <button type="button" class="contract-action-btn" id="tarhExportPdfBtn">
+                @Icons.Svg("pdf", "") <span>طباعة PDF</span>
+            </button>
+        </div>
+
+        <div id="tarhContent">
+            <div class="tarh-kpi-grid print-hide" id="tarhKpiGrid"></div>
+
+            <div class="charts-grid-3 tc-charts-2col print-hide" id="tarhChartsRow1" style="margin-bottom:12px;"></div>
+            <div class="charts-grid-3 tc-row-single print-hide" id="tarhChartsRow2" style="margin-bottom:12px;"></div>
+            <div class="tarh-row2-grid print-hide" id="tarhChartsRow3"></div>
+
+            <!-- جدول التصدير: مخفي على الشاشة، يظهر عند الطباعة فقط -->
+            <div class="contract-table-wrap tarh-export-table-wrap" id="tarhExportTableWrap">
+                <table class="contract-table with-number">
+                    <thead>
+                        <tr>
+                            <th>رقم الفرصة</th><th>رقم العقد</th><th>اسم الفرصة</th><th>القيمة</th>
+                            <th>الإدارة العامة</th><th>المحفظة الفرعية</th><th>سنة الطرح</th><th>تاريخ العقد</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tarhExportTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="no-data-box print-hide" id="tarhNoDataBox" style="display:none;">
             <span class="nd-icon">@Icons.Svg("inbox", "")</span>
             لا توجد بيانات عقود مستوردة بعد. اضغط "رفع ملف الطرح" أعلى الصفحة للبدء.
+        </div>
+
+        <!-- نافذة "تتبع الفرصة" - داخل نفس الصفحة، تُفتح/تُغلق عبر JS فقط -->
+        <div class="tarh-modal-overlay print-hide" id="tarhTrackModalOverlay" style="display:none;">
+            <div class="tarh-modal">
+                <div class="tarh-modal-header">
+                    <div class="tarh-modal-title"><i class="bi bi-signpost-split"></i> تتبع الفرصة</div>
+                    <button type="button" class="tarh-modal-close" id="tarhTrackModalClose" aria-label="إغلاق"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <div class="tarh-modal-body">
+                    <div id="tarhOpportunityList" class="tarh-opp-list"></div>
+                    <div id="tarhTimelineResult"></div>
+                </div>
+            </div>
         </div>
     </section>
 </div>
@@ -71,6 +114,10 @@
     <script>
         window.TARH_DATA_URL = "@Url.Action("TarhData", "Claims")";
         window.TARH_UPLOAD_URL = "@Url.Action("UploadContracts", "Claims")";
+        window.TARH_EXPORT_DATA_URL = "@Url.Action("TarhExportData", "Claims")";
+        window.TARH_EXPORT_EXCEL_URL = "@Url.Action("TarhExportExcel", "Claims")";
+        window.TARH_OPPORTUNITY_OPTIONS_URL = "@Url.Action("TarhOpportunityOptions", "Claims")";
+        window.TARH_OPPORTUNITY_TIMELINE_URL = "@Url.Action("TarhOpportunityTimeline", "Claims")";
     </script>
     <script src="~/js/tarh.js" asp-append-version="true"></script>
 }

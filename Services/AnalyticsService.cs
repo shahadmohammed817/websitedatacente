@@ -294,22 +294,6 @@ namespace ExcelDashboard.Services
         public decimal TotalValue { get; set; }
     }
 
-    /// <summary>صف إدارة عامة واحدة بصفحة "الطرح" - عدد وقيمة عقودها</summary>
-    public class TarhDeptRow
-    {
-        public string DeptLabel { get; set; } = string.Empty;
-        public int Count { get; set; }
-        public decimal TotalValue { get; set; }
-    }
-
-    /// <summary>صف نشاط واحد (بند فرعي) بصفحة "الطرح" - عدد وقيمة عقوده ضمن إدارة معيّنة</summary>
-    public class TarhActivityRow
-    {
-        public string ActivityLabel { get; set; } = string.Empty;
-        public int Count { get; set; }
-        public decimal TotalValue { get; set; }
-    }
-
     /// <summary>صف سنة واحدة بصفحة "الطرح" - عدد العقود المبرومة بهذه السنة</summary>
     public class TarhYearRow
     {
@@ -317,29 +301,118 @@ namespace ExcelDashboard.Services
         public int Count { get; set; }
     }
 
-    /// <summary>فرصة فتحت مظاريفها منذ 30 يومًا فأكثر ولا يوجد لها عقد بعد - بصفحة "الطرح"</summary>
-    public class TarhAtRiskRow
+    /// <summary>صف إدارة عامة واحدة بصفحة "الطرح" - قيمة وعدد العقود المبرومة منها (رسم 1)</summary>
+    public class TarhDeptSummaryRow
+    {
+        public string DepartmentLabel { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal TotalValue { get; set; }
+    }
+
+    /// <summary>صف محفظة فرعية واحدة (ضمن إدارة عامة محدَّدة) بصفحة "الطرح" - قيمة وعدد العقود
+    /// المبرومة منها (رسم 2) - يحمل اسم الإدارة العامة الأصلية حتى تُفلتَر القائمة بالواجهة
+    /// فورًا حسب الإدارة المختارة برسم 1 بلا أي طلب إضافي للسيرفر</summary>
+    public class TarhFinalizedByPortfolioRow
+    {
+        public string DepartmentLabel { get; set; } = string.Empty;
+        public string PortfolioLabel { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal TotalValue { get; set; }
+    }
+
+    /// <summary>صف سنة واحدة بصفحة "الطرح" - نسبتا الطرح والإبرام التراكميتان حتى هذه السنة (رسم 3)</summary>
+    public class TarhYearlyRateRow
+    {
+        public int Year { get; set; }
+
+        /// <summary>نسبة الفرص المطروحة (فُتحت مظاريفها) تراكميًا حتى هذه السنة، من إجمالي الفرص المطروحة بكل السنوات</summary>
+        public decimal TenderedPercent { get; set; }
+
+        /// <summary>نسبة العقود المبرومة تراكميًا حتى هذه السنة، من نفس إجمالي الفرص المطروحة (لتبقى النسبتان قابلتين للمقارنة المباشرة)</summary>
+        public decimal FinalizedPercent { get; set; }
+    }
+
+    /// <summary>صف (سنة + حالة) واحد بصفحة "الطرح" - عدد الفرص التي فُتحت مظاريفها بهذه السنة وبهذه الحالة</summary>
+    public class TarhEnvelopeStatusRow
+    {
+        public int Year { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    /// <summary>صف تصدير واحد بصفحة "الطرح" (تصدير Excel/PDF)</summary>
+    public class TarhExportRow
     {
         public string? OpportunityNumber { get; set; }
+        public string? ContractNumber { get; set; }
         public string? OpportunityName { get; set; }
-        public DateTime EnvelopeOpeningDate { get; set; }
-        public int DaysSinceEnvelope { get; set; }
+        public decimal Value { get; set; }
         public string? GeneralDepartment { get; set; }
-        public string? Status { get; set; }
+        public string? SubPortfolio { get; set; }
+        public int? ContractYear { get; set; }
+        public DateTime? ContractDate { get; set; }
     }
 
     /// <summary>
-    /// بيانات صفحة "الطرح": كروت أنواع العقود، توزيع الإدارات العامة، نسبة العقود المبرومة،
-    /// البنود الفرعية (المحفظة الفرعية) ضمن إدارة معيّنة، والاتجاه الزمني للعقود المبرومة،
-    /// والفرص المتأخرة (فتح مظاريف قبل 30 يومًا فأكثر بلا عقد) - كل ذلك قابل للتصفية بالسنة
-    /// والربع والإدارة العامة وحالة العقد ورقم العقد معًا.
+    /// حالة "مدة الفرص" بصفحة "الطرح": توزيع الفرص (اللي عندها عقد فعلي بتاريخ فتح مظاريف وتاريخ
+    /// عقد) بين "ضمن 40 يومًا" و"تجاوزت 40 يومًا"، مع متوسط مدة الإنجاز بالأيام
+    /// </summary>
+    public class TarhDurationStatus
+    {
+        public int TotalCount { get; set; }
+        public int WithinCount { get; set; }
+        public int OverCount { get; set; }
+        public decimal WithinPercent { get; set; }
+        public decimal OverPercent { get; set; }
+        public double AverageDays { get; set; }
+    }
+
+    /// <summary>خيار واحد بقائمة اختيار الفرصة (زر "تتبع الفرصة")</summary>
+    public class TarhOpportunityOption
+    {
+        public string OpportunityNumber { get; set; } = string.Empty;
+        public string? OpportunityName { get; set; }
+
+        /// <summary>"ضمن 40 يوم" أو "تجاوزت 40 يوم" أو null إن تعذّر حساب المدة - لتلوين نتائج البحث فورًا بلا طلب إضافي</summary>
+        public string? DurationStatus { get; set; }
+    }
+
+    /// <summary>رحلة فرصة واحدة عبر مراحلها الثلاث: فتح المظاريف ← الترسية ← توقيع العقد</summary>
+    public class TarhOpportunityTimeline
+    {
+        public bool Found { get; set; }
+        public string? OpportunityNumber { get; set; }
+        public string? OpportunityName { get; set; }
+        public string? ContractNumber { get; set; }
+        public string? Status { get; set; }
+
+        public DateTime? EnvelopeOpeningDate { get; set; }
+        public DateTime? AwardDate { get; set; }
+        public DateTime? ContractDate { get; set; }
+
+        /// <summary>المدة بالأيام بين فتح المظاريف والترسية (إن توفّر تاريخ الترسية)</summary>
+        public int? EnvelopeToAwardDays { get; set; }
+
+        /// <summary>المدة بالأيام بين الترسية وتوقيع العقد (إن توفّر تاريخ الترسية)</summary>
+        public int? AwardToContractDays { get; set; }
+
+        /// <summary>إجمالي مدة الفرصة بالأيام (فتح المظاريف إلى توقيع العقد)</summary>
+        public int? TotalDays { get; set; }
+
+        /// <summary>"ضمن 40 يوم" أو "تجاوزت 40 يوم" - يتطلب توفر تاريخَي فتح المظاريف والعقد معًا</summary>
+        public string? DurationStatus { get; set; }
+    }
+
+    /// <summary>
+    /// بيانات صفحة "الطرح": كروت أنواع العقود، قيمة وعدد العقود المبرومة حسب المحفظة الفرعية،
+    /// الاتجاه الزمني لتوقيع العقود المبرومة، وتوزيع فتح المظاريف حسب السنة والحالة - كل ذلك
+    /// قابل للتصفية بالسنة والربع والإدارة العامة وحالة العقد ورقم العقد معًا.
     /// </summary>
     public class TarhPageData
     {
         public bool HasData { get; set; }
 
         public List<TarhTypeSummaryRow> TypeSummary { get; set; } = new();
-        public List<TarhDeptRow> DeptChart { get; set; } = new();
 
         public int TotalCount { get; set; }
         public int FinalizedCount { get; set; }
@@ -348,14 +421,23 @@ namespace ExcelDashboard.Services
         /// <summary>إجمالي عدد الفرص (رقم الفرصة) ضمن التصفية الحالية</summary>
         public int TotalOpportunities { get; set; }
 
-        /// <summary>الإدارة العامة التي تُعرَض بنودها الفرعية حاليًا (المُختارة بالفلتر، أو "الإدارة العامة لمحافظ الاستثمارات التجارية" افتراضيًا)</summary>
-        public string ActivitiesDepartment { get; set; } = string.Empty;
-        public List<TarhActivityRow> ActivityChart { get; set; } = new();
+        /// <summary>قيمة وعدد العقود المبرومة حسب الإدارة العامة (رسم 1)</summary>
+        public List<TarhDeptSummaryRow> DeptSummary { get; set; } = new();
 
+        /// <summary>قيمة وعدد العقود المبرومة حسب المحفظة الفرعية، مع اسم الإدارة العامة لكل صف (رسم 2)</summary>
+        public List<TarhFinalizedByPortfolioRow> FinalizedByPortfolio { get; set; } = new();
+
+        /// <summary>نسبتا الطرح والإبرام التراكميتان حسب السنة (رسم 3) - بلا أي فلاتر، كل السنوات دائمًا</summary>
+        public List<TarhYearlyRateRow> YearlyRates { get; set; } = new();
+
+        /// <summary>الاتجاه الزمني لتوقيع العقود المبرومة (عدد لكل سنة)</summary>
         public List<TarhYearRow> YearlyFinalizedTrend { get; set; } = new();
 
-        /// <summary>الفرص التي فتحت مظاريفها منذ 30 يومًا فأكثر ولا يوجد لها رقم عقد بعد (الأقدم أولاً)</summary>
-        public List<TarhAtRiskRow> AtRiskOpportunities { get; set; } = new();
+        /// <summary>عدد الفرص التي فُتحت مظاريفها لكل (سنة، حالة) - لرسم الأعمدة المكدّسة</summary>
+        public List<TarhEnvelopeStatusRow> EnvelopeByYearStatus { get; set; } = new();
+
+        /// <summary>حالة مدة الفرص (ضمن/تجاوزت 40 يومًا) + متوسط الأيام</summary>
+        public TarhDurationStatus DurationStatus { get; set; } = new();
 
         public List<string> DepartmentOptions { get; set; } = new();
         public List<string> StatusOptions { get; set; } = new();
@@ -372,8 +454,17 @@ namespace ExcelDashboard.Services
         /// <summary>بيانات صفحة "مستهدفات وزارة المالية" (أمانة/بلديات، محصّل مقابل مستهدف سنوي لكل بند)</summary>
         Task<FinanceTargetsPageData> GetFinanceTargetsPageDataAsync();
 
-        /// <summary>بيانات صفحة "الطرح" (كروت أنواع العقود، توزيع الإدارات، نسبة الإبرام، البنود الفرعية، الاتجاه الزمني، الفرص المتأخرة)</summary>
+        /// <summary>بيانات صفحة "الطرح" (كروت أنواع العقود، القيمة حسب المحفظة الفرعية، الاتجاه الزمني، فتح المظاريف حسب الحالة)</summary>
         Task<TarhPageData> GetTarhDataAsync(string? department, string? status, string? contractNumber, int? year, int? quarter);
+
+        /// <summary>صفوف تصدير صفحة "الطرح" (Excel/PDF) - بنفس تصفية GetTarhDataAsync</summary>
+        Task<List<TarhExportRow>> GetTarhExportRowsAsync(string? department, string? status, string? contractNumber, int? year, int? quarter);
+
+        /// <summary>قائمة الفرص (اللي عندها رقم عقد فعلي) لتعبئة مربع اختيار "تتبع الفرصة"</summary>
+        Task<List<TarhOpportunityOption>> GetTarhOpportunityOptionsAsync();
+
+        /// <summary>رحلة فرصة واحدة (فتح المظاريف ← الترسية ← توقيع العقد) برقم الفرصة</summary>
+        Task<TarhOpportunityTimeline> GetTarhOpportunityTimelineAsync(string opportunityNumber);
 
         Task<SectionDashboardData> GetSectionDataAsync(int sectionId, bool includeSubSections = true, string? quarter = null, string? contractNumber = null);
 
@@ -1367,9 +1458,6 @@ namespace ExcelDashboard.Services
         // حالة العقد التي تعني "مبرومة" بلغة صفحة الطرح
         private const string FinalizedStatus = "تم إبرام العقد";
 
-        // الإدارة العامة الافتراضية للبنود الفرعية (الأنشطة) عند عدم اختيار إدارة من الفلتر
-        private const string DefaultActivitiesDepartment = "الإدارة العامة لمحافظ الاستثمارات التجارية";
-
         public async Task<TarhPageData> GetTarhDataAsync(string? department, string? status, string? contractNumber, int? year, int? quarter)
         {
             var all = await _db.ContractRecords.ToListAsync();
@@ -1380,18 +1468,12 @@ namespace ExcelDashboard.Services
             result.StatusOptions = all.Select(r => r.Status).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().OrderBy(s => s).ToList()!;
             result.YearOptions = all.Select(r => r.ContractYear).Where(y => y.HasValue).Select(y => y!.Value).Distinct().OrderByDescending(y => y).ToList();
 
-            bool MatchesBase(ContractRecord r) =>
-                (string.IsNullOrWhiteSpace(department) || r.GeneralDepartment == department) &&
-                (string.IsNullOrWhiteSpace(contractNumber) || (r.ContractNumber ?? "").Contains(contractNumber, StringComparison.OrdinalIgnoreCase)) &&
-                (!year.HasValue || r.ContractYear == year) &&
-                (!quarter.HasValue || r.Quarter == quarter);
+            var filtered = TarhFilter(all, department, status, contractNumber, year, quarter);
 
-            // بلا فلتر الحالة - يُستخدم لخط الاتجاه الزمني الذي يفرض حالة "مبرومة" دائمًا بصرف
-            // النظر عن فلتر الحالة المختار بالصفحة
-            var baseFiltered = all.Where(MatchesBase).ToList();
-
-            // مع فلتر الحالة - يُستخدم لبقية عناصر الصفحة
-            var filtered = baseFiltered.Where(r => string.IsNullOrWhiteSpace(status) || r.Status == status).ToList();
+            // بلا فلترَي الحالة والسنة - يُستخدم للاتجاه الزمني لتوقيع العقود المبرومة عبر
+            // السنوات (يفرض حالة "مبرومة" دائمًا)؛ فلترته بسنة واحدة يُفرغ الرسم من معناه (نقطة
+            // واحدة بلا خط يصل بينها)، لذا يبقى معروضًا لكل السنوات مهما كانت السنة المختارة
+            var yearlyTrendBase = TarhFilter(all, department, null, contractNumber, null, quarter);
 
             result.TotalOpportunities = filtered
                 .Select(r => r.OpportunityNumber)
@@ -1415,60 +1497,200 @@ namespace ExcelDashboard.Services
                 .OrderByDescending(x => x.Count)
                 .ToList();
 
-            result.DeptChart = filtered
-                .GroupBy(r => string.IsNullOrWhiteSpace(r.GeneralDepartment) ? "غير محدد" : r.GeneralDepartment!)
-                .Select(g => new TarhDeptRow { DeptLabel = g.Key, Count = DistinctCount(g), TotalValue = g.Sum(EffectiveValue) })
-                .OrderByDescending(x => x.TotalValue)
-                .ToList();
-
             result.TotalCount = DistinctCount(filtered);
             result.FinalizedCount = DistinctCount(filtered.Where(r => r.Status == FinalizedStatus));
             result.FinalizedPercent = result.TotalCount > 0
                 ? Math.Round((decimal)result.FinalizedCount / result.TotalCount * 100, 1) : 0;
 
-            result.ActivitiesDepartment = string.IsNullOrWhiteSpace(department) ? DefaultActivitiesDepartment : department;
-            result.ActivityChart = filtered
-                .Where(r => r.GeneralDepartment == result.ActivitiesDepartment && !string.IsNullOrWhiteSpace(r.SubPortfolio))
-                .GroupBy(r => r.SubPortfolio!)
-                .Select(g => new TarhActivityRow { ActivityLabel = g.Key, Count = DistinctCount(g), TotalValue = g.Sum(EffectiveValue) })
-                .OrderByDescending(x => x.Count)
+            // قيمة وعدد العقود المبرومة حسب الإدارة العامة (رسم 1) والمحفظة الفرعية ضمن كل إدارة
+            // (رسم 2) - عقود مبرومة فقط ("رقم العقد"/"سنة العقد" لا تتوفر إلا لهذه الحالة أصلاً)،
+            // تحترم فلترَي السنة والربع بالصفحة فقط (لا يوجد فلترا إدارة/حالة بالواجهة بعد الآن)
+            var deptBase = TarhFilter(all, null, FinalizedStatus, contractNumber, year, quarter);
+
+            result.DeptSummary = deptBase
+                .Where(r => !string.IsNullOrWhiteSpace(r.GeneralDepartment))
+                .GroupBy(r => r.GeneralDepartment!)
+                .Select(g => new TarhDeptSummaryRow { DepartmentLabel = g.Key, Count = DistinctCount(g), TotalValue = g.Sum(EffectiveValue) })
+                .OrderByDescending(x => x.TotalValue)
                 .ToList();
 
-            result.YearlyFinalizedTrend = baseFiltered
+            result.FinalizedByPortfolio = deptBase
+                .Where(r => !string.IsNullOrWhiteSpace(r.GeneralDepartment) && !string.IsNullOrWhiteSpace(r.SubPortfolio))
+                .GroupBy(r => new { r.GeneralDepartment, r.SubPortfolio })
+                .Select(g => new TarhFinalizedByPortfolioRow
+                {
+                    DepartmentLabel = g.Key.GeneralDepartment!, PortfolioLabel = g.Key.SubPortfolio!,
+                    Count = DistinctCount(g), TotalValue = g.Sum(EffectiveValue)
+                })
+                .OrderBy(x => x.DepartmentLabel).ThenByDescending(x => x.TotalValue)
+                .ToList();
+
+            // نسبتا الطرح والإبرام التراكميتان حسب السنة (رسم 3) - اتجاه زمني شامل بلا أي فلاتر.
+            // المرجع (100%) = إجمالي عدد الفرص التي فُتحت مظاريفها (=طُرحت) عبر كل السنوات؛ نسبة
+            // الإبرام تُحسَب من نفس المرجع (لا من إجمالي العقود المبرومة وحدها) حتى تكون النسبتان
+            // قابلتين للمقارنة المباشرة على نفس المقياس (كم من إجمالي المطروح تم إبرامه فعليًا)
+            var tenderedRows = all.Where(r => r.EnvelopeOpeningDate.HasValue).ToList();
+            var totalTendered = DistinctCount(tenderedRows);
+            var rateYears = tenderedRows.Select(r => r.EnvelopeOpeningDate!.Value.Year)
+                .Union(all.Where(r => r.Status == FinalizedStatus && r.ContractYear.HasValue).Select(r => r.ContractYear!.Value))
+                .Distinct().OrderBy(y => y).ToList();
+
+            decimal cumTendered = 0, cumFinalized = 0;
+            result.YearlyRates = rateYears.Select(y =>
+            {
+                cumTendered += DistinctCount(tenderedRows.Where(r => r.EnvelopeOpeningDate!.Value.Year == y));
+                cumFinalized += DistinctCount(all.Where(r => r.Status == FinalizedStatus && r.ContractYear == y));
+                return new TarhYearlyRateRow
+                {
+                    Year = y,
+                    TenderedPercent = totalTendered > 0 ? Math.Round(cumTendered / totalTendered * 100, 1) : 0,
+                    FinalizedPercent = totalTendered > 0 ? Math.Round(cumFinalized / totalTendered * 100, 1) : 0
+                };
+            }).ToList();
+
+            // الاتجاه الزمني لتوقيع العقود المبرومة (بلا فلترَي حالة وسنة - مفروضة "مبرومة" هنا دومًا)
+            result.YearlyFinalizedTrend = yearlyTrendBase
                 .Where(r => r.Status == FinalizedStatus && r.ContractYear.HasValue)
                 .GroupBy(r => r.ContractYear!.Value)
                 .Select(g => new TarhYearRow { Year = g.Key, Count = DistinctCount(g) })
                 .OrderBy(x => x.Year)
                 .ToList();
 
-            // الفرص المتأخرة: فتحت مظاريفها منذ 30 يومًا فأكثر ولا يوجد لها رقم عقد بعد. "سنة
-            // العقد"/"الربع" غير مُعبَّأين لهذه الصفوف أصلاً (لا عقد = لا تاريخ عقد)، فتُصفَّى هنا
-            // بسنة/ربع "فتح المظاريف" نفسها بدل سنة/ربع العقد حتى تبقى الفلاتر مفيدة لهذه القائمة
-            var todayUtc = DateTime.UtcNow.Date;
-            var envelopeThreshold = todayUtc.AddDays(-30);
-            result.AtRiskOpportunities = all
-                .Where(r =>
-                    (string.IsNullOrWhiteSpace(department) || r.GeneralDepartment == department) &&
-                    (string.IsNullOrWhiteSpace(contractNumber) || (r.ContractNumber ?? "").Contains(contractNumber, StringComparison.OrdinalIgnoreCase)) &&
-                    (string.IsNullOrWhiteSpace(status) || r.Status == status) &&
-                    string.IsNullOrWhiteSpace(r.ContractNumber) &&
-                    r.EnvelopeOpeningDate.HasValue &&
-                    r.EnvelopeOpeningDate.Value.Date <= envelopeThreshold &&
-                    (!year.HasValue || r.EnvelopeOpeningDate.Value.Year == year) &&
-                    (!quarter.HasValue || (((r.EnvelopeOpeningDate.Value.Month - 1) / 3) + 1) == quarter))
-                .OrderBy(r => r.EnvelopeOpeningDate)
-                .Select(r => new TarhAtRiskRow
-                {
-                    OpportunityNumber = r.OpportunityNumber,
-                    OpportunityName = r.OpportunityName,
-                    EnvelopeOpeningDate = r.EnvelopeOpeningDate!.Value,
-                    DaysSinceEnvelope = (int)(todayUtc - r.EnvelopeOpeningDate.Value.Date).TotalDays,
-                    GeneralDepartment = r.GeneralDepartment,
-                    Status = r.Status
-                })
+            // فتح المظاريف حسب السنة والحالة: يُبنى من "فتح المظاريف" (متوفر لكل الحالات تقريبًا،
+            // بخلاف "سنة العقد" المتوفرة للعقود المبرومة فقط) - بلا فلترَي سنة/حالة لأن السنة
+            // والحالة هما بُعدا الرسم نفسه؛ يُطبَّق فلترا الإدارة/رقم العقد فقط
+            var envelopeBase = TarhFilter(all, department, null, contractNumber, null, null);
+            result.EnvelopeByYearStatus = envelopeBase
+                .Where(r => r.EnvelopeOpeningDate.HasValue && !string.IsNullOrWhiteSpace(r.Status))
+                .GroupBy(r => new { Year = r.EnvelopeOpeningDate!.Value.Year, r.Status })
+                .Select(g => new TarhEnvelopeStatusRow { Year = g.Key.Year, Status = g.Key.Status!, Count = DistinctCount(g) })
+                .OrderBy(x => x.Year).ThenBy(x => x.Status)
                 .ToList();
 
+            // حالة مدة الفرص: فقط الفرص اللي حالتها من "الحالات قيد الإجراء" الأربع (لم تُبرَم
+            // ولم تُلغَ بعد)، وبسنة 2026 فقط (بتاريخ فتح المظاريف)، والمدة = من تاريخ فتح
+            // المظاريف إلى تاريخ اليوم (لأنها لم تصل لمرحلة توقيع عقد بعد فلا يوجد تاريخ عقد أصلاً)
+            var todayForDuration = DateTime.UtcNow.Date;
+            var durationBase = TarhFilter(all, department, null, contractNumber, null, null);
+            var durationRows = durationBase
+                .Where(r => r.Status != null && TarhPendingStatuses.Contains(r.Status) &&
+                            r.EnvelopeOpeningDate.HasValue && r.EnvelopeOpeningDate.Value.Year == 2026)
+                .Select(r => (int)(todayForDuration - r.EnvelopeOpeningDate!.Value.Date).TotalDays)
+                .ToList();
+            var withinCount = durationRows.Count(d => d <= 40);
+            var overCount = durationRows.Count(d => d > 40);
+            var durationTotal = withinCount + overCount;
+            result.DurationStatus = new TarhDurationStatus
+            {
+                TotalCount = durationTotal,
+                WithinCount = withinCount,
+                OverCount = overCount,
+                WithinPercent = durationTotal > 0 ? Math.Round((decimal)withinCount / durationTotal * 100, 1) : 0,
+                OverPercent = durationTotal > 0 ? Math.Round((decimal)overCount / durationTotal * 100, 1) : 0,
+                AverageDays = durationRows.Count > 0 ? Math.Round(durationRows.Average(), 1) : 0
+            };
+
             return result;
+        }
+
+        /// <summary>قائمة الفرص لتعبئة مربع اختيار "تتبع الفرصة" - بنفس نطاق رسمة "حالة مدة الفرص
+        /// قيد الإجراء (2026)" بالضبط (الحالات الأربع + سنة فتح المظاريف 2026 فقط)، لأن الغرض من
+        /// الزر تتبع نفس الفرص المعروضة بتلك الرسمة وليس كل الفرص بصرف النظر عن حالتها</summary>
+        public async Task<List<TarhOpportunityOption>> GetTarhOpportunityOptionsAsync()
+        {
+            var all = await _db.ContractRecords.ToListAsync();
+            var today = DateTime.UtcNow.Date;
+            return all
+                .Where(r => !string.IsNullOrWhiteSpace(r.OpportunityNumber) && r.Status != null &&
+                            TarhPendingStatuses.Contains(r.Status) &&
+                            r.EnvelopeOpeningDate.HasValue && r.EnvelopeOpeningDate.Value.Year == 2026)
+                .Select(r =>
+                {
+                    var days = (today - r.EnvelopeOpeningDate!.Value.Date).TotalDays;
+                    var durationStatus = days <= 40 ? "ضمن 40 يوم" : "تجاوزت 40 يوم";
+                    return new TarhOpportunityOption { OpportunityNumber = r.OpportunityNumber!, OpportunityName = r.OpportunityName, DurationStatus = durationStatus };
+                })
+                .OrderBy(x => x.OpportunityNumber)
+                .ToList();
+        }
+
+        /// <summary>رحلة فرصة واحدة (فتح المظاريف ← الترسية) برقم الفرصة. الفرص المعروضة بقائمة
+        /// "تتبع الفرصة" كلها قيد الإجراء (بلا رقم عقد بعد) فلا نشترط وجوده هنا</summary>
+        public async Task<TarhOpportunityTimeline> GetTarhOpportunityTimelineAsync(string opportunityNumber)
+        {
+            var record = await _db.ContractRecords.FirstOrDefaultAsync(r => r.OpportunityNumber == opportunityNumber);
+            if (record == null)
+                return new TarhOpportunityTimeline { Found = false };
+
+            var timeline = new TarhOpportunityTimeline
+            {
+                Found = true,
+                OpportunityNumber = record.OpportunityNumber,
+                OpportunityName = record.OpportunityName,
+                ContractNumber = record.ContractNumber,
+                Status = record.Status,
+                EnvelopeOpeningDate = record.EnvelopeOpeningDate,
+                AwardDate = record.AwardDate,
+                ContractDate = record.ContractDate
+            };
+
+            if (record.EnvelopeOpeningDate.HasValue && record.AwardDate.HasValue)
+                timeline.EnvelopeToAwardDays = (int)(record.AwardDate.Value.Date - record.EnvelopeOpeningDate.Value.Date).TotalDays;
+
+            if (record.AwardDate.HasValue && record.ContractDate.HasValue)
+                timeline.AwardToContractDays = (int)(record.ContractDate.Value.Date - record.AwardDate.Value.Date).TotalDays;
+
+            // إذا الفرصة أُبرِم عقدها فعلًا: المدة حتى تاريخ العقد. إذا لسه قيد الإجراء (بإحدى
+            // الحالات الأربع): المدة حتى تاريخ اليوم - بنفس منطق رسمة "حالة مدة الفرص قيد الإجراء"
+            if (record.EnvelopeOpeningDate.HasValue)
+            {
+                DateTime? endDate = record.ContractDate ??
+                    (record.Status != null && TarhPendingStatuses.Contains(record.Status) ? DateTime.UtcNow.Date : (DateTime?)null);
+                if (endDate.HasValue)
+                {
+                    timeline.TotalDays = (int)(endDate.Value.Date - record.EnvelopeOpeningDate.Value.Date).TotalDays;
+                    timeline.DurationStatus = timeline.TotalDays <= 40 ? "ضمن 40 يوم" : "تجاوزت 40 يوم";
+                }
+            }
+
+            return timeline;
+        }
+
+        // الحالات الأربع اللي تُعتبر "قيد الإجراء" (لم تُبرَم ولم تُلغَ بعد) - نطاق مشترك بين رسمة
+        // "حالة مدة الفرص قيد الإجراء" وقائمة/رحلة "تتبع الفرصة" حتى يبقى المعروض بالثلاثة متطابقًا
+        private static readonly HashSet<string> TarhPendingStatuses = new()
+            { "بإنتظار إعتماد العقد", "بإنتظار دفع الفاتورة", "تحت إجراءات الترسية", "تم فتح المظاريف" };
+
+        // فلترة موحّدة لعقود صفحة "الطرح" حسب الإدارة العامة/الحالة/رقم العقد/السنة/الربع - يُستخدم
+        // بكل من GetTarhDataAsync وGetTarhExportRowsAsync حتى تبقى نفس نتائج الصفحة والتصدير متطابقة
+        private static List<ContractRecord> TarhFilter(
+            IEnumerable<ContractRecord> source, string? department, string? status, string? contractNumber, int? year, int? quarter) =>
+            source.Where(r =>
+                (string.IsNullOrWhiteSpace(department) || r.GeneralDepartment == department) &&
+                (string.IsNullOrWhiteSpace(status) || r.Status == status) &&
+                (string.IsNullOrWhiteSpace(contractNumber) || (r.ContractNumber ?? "").Contains(contractNumber, StringComparison.OrdinalIgnoreCase)) &&
+                (!year.HasValue || r.ContractYear == year) &&
+                (!quarter.HasValue || r.Quarter == quarter))
+            .ToList();
+
+        /// <summary>صفوف تصدير صفحة "الطرح" (Excel/PDF) - نفس تصفية GetTarhDataAsync بالضبط</summary>
+        public async Task<List<TarhExportRow>> GetTarhExportRowsAsync(string? department, string? status, string? contractNumber, int? year, int? quarter)
+        {
+            var all = await _db.ContractRecords.ToListAsync();
+            return TarhFilter(all, department, status, contractNumber, year, quarter)
+                .OrderBy(r => r.OpportunityNumber)
+                .Select(r => new TarhExportRow
+                {
+                    OpportunityNumber = r.OpportunityNumber,
+                    ContractNumber = r.ContractNumber,
+                    OpportunityName = r.OpportunityName,
+                    Value = r.ContractValue ?? r.AnnualRent ?? 0,
+                    GeneralDepartment = r.GeneralDepartment,
+                    SubPortfolio = r.SubPortfolio,
+                    ContractYear = r.ContractYear,
+                    ContractDate = r.ContractDate
+                })
+                .ToList();
         }
     }
 }

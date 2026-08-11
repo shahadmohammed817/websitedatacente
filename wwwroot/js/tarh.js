@@ -5,11 +5,13 @@
    ========================================================================== */
 const TARH_C = {
     dark: "#0E6E61", mid: "#3F8F87", light: "#5FA89D", lime: "#8DC63F", limeDk: "#5F9E1F",
-    red: "#D6534A", target: "#E0A930", text: "#173B36", muted: "#6E8A86", grid: "#E1ECEA",
+    red: "#D6534A", text: "#173B36", muted: "#6E8A86", grid: "#E1ECEA",
     axisText: "#181818"
 };
 const TARH_AXIS_LABEL_STYLE = { color: TARH_C.axisText, fontSize: 13, fontWeight: 600 };
-const TARH_PALETTE = [TARH_C.dark, TARH_C.lime, TARH_C.mid, TARH_C.target, TARH_C.red, TARH_C.light, TARH_C.limeDk, "#A9CFC9"];
+// تدرّجات ألوان الشعار فقط (بلا أي لون خارج عائلة الأخضر/التركواز الرسمية) - تُستخدَم لتلوين
+// كل عمود بلون مختلف بدل لون واحد موحّد لكل الأعمدة
+const TARH_PALETTE = [TARH_C.dark, TARH_C.mid, TARH_C.lime, TARH_C.light, TARH_C.limeDk];
 
 function tarhAxisStyle(extra) {
     extra = extra || {};
@@ -121,21 +123,15 @@ function tarhBuildFilterBar(data) {
 
     const yearOptions = (data.yearOptions || []).map(function (y) { return String(y); });
     const year = tarhMakeSelectWrap("tarhYearFilter", "bi-calendar-event", "كل السنوات", yearOptions, tarhCurrentFilters.year);
-    const dept = tarhMakeSelectWrap("tarhDeptFilter", "bi-building", "كل الإدارات العامة", data.departmentOptions, tarhCurrentFilters.department);
     const quarter = tarhMakeQuarterWrap("tarhQuarterFilter", tarhCurrentFilters.quarter);
-    const status = tarhMakeSelectWrap("tarhStatusFilter", "bi-flag", "كل الحالات", data.statusOptions, tarhCurrentFilters.status);
     const search = tarhMakeSearchWrap("tarhContractNumberFilter", "ابحث برقم العقد...", tarhCurrentFilters.contractNumber);
 
     bar.appendChild(year.wrap);
-    bar.appendChild(dept.wrap);
     bar.appendChild(quarter.wrap);
-    bar.appendChild(status.wrap);
     bar.appendChild(search.wrap);
 
     year.select.addEventListener("change", function () { tarhCurrentFilters.year = year.select.value; tarhLoad(); });
-    dept.select.addEventListener("change", function () { tarhCurrentFilters.department = dept.select.value; tarhLoad(); });
     quarter.select.addEventListener("change", function () { tarhCurrentFilters.quarter = quarter.select.value; tarhLoad(); });
-    status.select.addEventListener("change", function () { tarhCurrentFilters.status = status.select.value; tarhLoad(); });
     search.input.addEventListener("input", function () {
         tarhCurrentFilters.contractNumber = search.input.value.trim();
         clearTimeout(tarhSearchDebounce);
@@ -172,16 +168,32 @@ function tarhRenderKpiCards(typeSummary, totalOpportunities) {
 }
 
 /* ==========================================================================
-   رسم 1: توزيع الإدارات العامة - أعمدة أفقية (قيمة كطول العمود + عدد كتسمية)،
-   بنفس أسلوب رسمة "البنود الفرعية" (Power BI) لسهولة القراءة
+   رسمان 1+2: قيمة وعدد العقود المبرمة حسب الإدارة العامة / حسب الإدارة الفرعية -
+   نفس شكل أعمدة (عدد) + خط (قيمة) لكليهما؛ رسم 1 قابل للضغط لتصفية رسم 2
    ========================================================================== */
-function tarhBuildDeptChartOption(deptChart) {
-    const sorted = deptChart.slice().sort(function (a, b) { return a.totalValue - b.totalValue; });
-    const categories = sorted.map(function (d) { return d.deptLabel; });
+function tarhComboItemsFromDept(rows) {
+    return (rows || []).map(function (d) { return { label: d.departmentLabel, count: d.count, totalValue: d.totalValue }; });
+}
+function tarhComboItemsFromSubDept(rows, dept) {
+    return (rows || [])
+        .filter(function (r) { return r.departmentLabel === dept; })
+        .map(function (r) { return { label: r.portfolioLabel, count: r.count, totalValue: r.totalValue }; });
+}
+
+function tarhBuildComboBarLineOption(items, highlightLabel) {
+    const sorted = items.slice().sort(function (a, b) { return b.totalValue - a.totalValue; });
+    const categories = sorted.map(function (d) { return d.label; });
     const values = sorted.map(function (d) { return d.totalValue; });
-    const counts = sorted.map(function (d) { return d.count; });
+    const isNarrow = window.innerWidth < 700;
     const barData = sorted.map(function (d, i) {
-        return { value: d.totalValue, itemStyle: { color: TARH_PALETTE[i % TARH_PALETTE.length], borderRadius: [0, 4, 4, 0] } };
+        var selected = !!highlightLabel && d.label === highlightLabel;
+        return {
+            value: d.count,
+            itemStyle: {
+                color: TARH_PALETTE[i % TARH_PALETTE.length], borderRadius: [6, 6, 0, 0],
+                borderColor: selected ? TARH_C.text : "transparent", borderWidth: selected ? 2 : 0
+            }
+        };
     });
 
     return {
@@ -190,162 +202,161 @@ function tarhBuildDeptChartOption(deptChart) {
             formatter: function (params) {
                 var i = params[0].dataIndex;
                 var lines = '<div style="font-weight:700;margin-bottom:6px;">' + tarhEscape(categories[i]) + '</div>';
-                lines += '<div>عدد العقود: <strong>' + tarhFormatNum(counts[i]) + '</strong></div>';
-                lines += '<div>القيمة: <strong>' + tarhFormatNum(values[i]) + '</strong></div>';
+                lines += '<div>عدد العقود: <strong>' + tarhFormatNum(sorted[i].count) + '</strong></div>';
+                lines += '<div>القيمة: <strong>' + tarhFormatNum(sorted[i].totalValue) + '</strong></div>';
                 return lines;
             }
         }),
-        grid: { left: 200, right: 110, top: 20, bottom: 20 },
-        xAxis: tarhAxisStyle({ type: "value", axisLabel: { formatter: tarhFormatCompact } }),
-        yAxis: tarhAxisStyle({ type: "category", data: categories, axisLabel: { fontSize: 11, width: 190, overflow: "break" } }),
-        series: [{
-            name: "قيمة العقود", type: "bar", data: barData, barMaxWidth: 26, barCategoryGap: "35%", z: 1,
-            label: {
-                show: true, position: "right", color: TARH_C.text, fontWeight: 700, fontSize: 11,
-                formatter: function (p) { return tarhFormatCompact(p.value) + " (" + tarhFormatNum(counts[p.dataIndex]) + " عقد)"; }
-            }
-        }]
-    };
-}
-
-/* ==========================================================================
-   رسم 2: نسبة العقود المبرومة (Gauge)
-   ========================================================================== */
-function tarhBuildFinalizedGaugeOption(percent, finalizedCount, totalCount) {
-    return {
-        series: [{
-            type: "gauge",
-            startAngle: 200, endAngle: -20,
-            min: 0, max: 100,
-            radius: "85%",
-            axisLine: { lineStyle: { width: 16, color: [[percent / 100, TARH_C.lime], [1, TARH_C.grid]] } },
-            pointer: { show: false },
-            axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false },
-            anchor: { show: false },
-            title: { show: false },
-            detail: {
-                valueAnimation: true,
-                offsetCenter: [0, "-10%"],
-                formatter: function () { return percent.toFixed(1) + "%"; },
-                fontSize: 30, fontWeight: 800, color: TARH_C.text, fontFamily: "Cairo"
+        legend: { top: 0, right: 8, textStyle: Object.assign({}, TARH_AXIS_LABEL_STYLE), itemWidth: 12, itemHeight: 10 },
+        grid: { left: 16, right: 16, top: 56, bottom: isNarrow ? 130 : 110, containLabel: true },
+        xAxis: tarhAxisStyle({
+            type: "category", data: categories,
+            axisLabel: { interval: 0, rotate: 0, fontSize: 11, width: 118, overflow: "break", lineHeight: 15, margin: 12 },
+            axisTick: { alignWithLabel: true }
+        }),
+        yAxis: [
+            tarhAxisStyle({ type: "value", axisLabel: { formatter: tarhFormatCompact } }),
+            tarhAxisStyle({ type: "value", splitLine: { show: false }, axisLabel: { formatter: tarhFormatCompact } })
+        ],
+        series: [
+            {
+                name: "عدد العقود", type: "bar", data: barData, yAxisIndex: 0, barMaxWidth: 34, barCategoryGap: "40%", z: 1,
+                cursor: "pointer",
+                label: { show: true, position: "top", color: TARH_C.dark, fontWeight: 800, fontSize: 12, formatter: function (p) { return tarhFormatNum(p.value); } }
             },
-            data: [{ value: percent }]
-        }],
-        graphic: [{
-            type: "text",
-            left: "center", top: "68%",
-            style: {
-                text: tarhFormatNum(finalizedCount) + " من أصل " + tarhFormatNum(totalCount) + " عقد مبرومة",
-                fontSize: 13, fontWeight: 600, fill: TARH_C.muted
+            {
+                name: "القيمة", type: "line", data: values, yAxisIndex: 1, smooth: true, z: 2,
+                lineStyle: { color: TARH_C.lime, width: 2.5 },
+                itemStyle: { color: TARH_C.lime }, symbol: "circle", symbolSize: 7,
+                label: { show: true, position: "top", color: TARH_C.limeDk, fontWeight: 800, fontSize: 12, formatter: function (p) { return tarhFormatCompact(p.value); } }
             }
-        }]
+        ]
     };
 }
 
 /* ==========================================================================
-   رسم 3: البنود الفرعية (الأنشطة) ضمن الإدارة المختارة - أعمدة أفقية
+   رسم 3: نسبة الطرح ونسبة الإبرام حسب السنة (Line Chart تراكمي) - بلا فلاتر،
+   كل السنوات دائمًا. المرجع (100%) لكلا الخطين = إجمالي الفرص المطروحة بكل
+   السنوات، حتى تبقى النسبتان قابلتين للمقارنة المباشرة على نفس المقياس
    ========================================================================== */
-function tarhBuildActivityChartOption(activityChart) {
-    const categories = activityChart.map(function (a) { return a.activityLabel; });
-    const values = activityChart.map(function (a) { return a.totalValue; });
-    const counts = activityChart.map(function (a) { return a.count; });
+function tarhBuildYearlyRateOption(rows) {
+    const years = rows.map(function (r) { return String(r.year); });
+    const tendered = rows.map(function (r) { return r.tenderedPercent; });
+    const finalized = rows.map(function (r) { return r.finalizedPercent; });
 
     return {
         tooltip: tarhTooltip({
-            trigger: "axis", axisPointer: { type: "shadow" },
+            trigger: "axis",
             formatter: function (params) {
-                var i = params[0].dataIndex;
-                var lines = '<div style="font-weight:700;margin-bottom:6px;">' + tarhEscape(categories[i]) + '</div>';
-                lines += '<div>القيمة: <strong>' + tarhFormatNum(values[i]) + '</strong></div>';
-                lines += '<div>عدد العقود: <strong>' + tarhFormatNum(counts[i]) + '</strong></div>';
+                var lines = '<div style="font-weight:700;margin-bottom:4px;">' + params[0].axisValue + '</div>';
+                params.forEach(function (p) { lines += '<div>' + p.marker + ' ' + p.seriesName + ': <strong>' + p.value + '%</strong></div>'; });
                 return lines;
             }
         }),
-        grid: { left: 170, right: 90, top: 20, bottom: 20 },
-        xAxis: tarhAxisStyle({ type: "value", axisLabel: { formatter: tarhFormatCompact } }),
-        yAxis: tarhAxisStyle({ type: "category", data: categories, axisLabel: { fontSize: 11, width: 160, overflow: "break" } }),
-        series: [{
-            name: "قيمة العقود", type: "bar", data: values, barMaxWidth: 18, barCategoryGap: "40%", z: 1,
-            itemStyle: { color: TARH_C.mid, borderRadius: [0, 4, 4, 0] },
-            label: {
-                show: true, position: "right", color: TARH_C.mid, fontWeight: 700, fontSize: 10,
-                formatter: function (p) { return tarhFormatCompact(p.value) + " (" + tarhFormatNum(counts[p.dataIndex]) + " عقد)"; }
+        legend: { top: 0, right: 8, textStyle: Object.assign({}, TARH_AXIS_LABEL_STYLE), itemWidth: 12, itemHeight: 10 },
+        grid: { left: 50, right: 30, top: 56, bottom: 40 },
+        xAxis: tarhAxisStyle({ type: "category", data: years }),
+        yAxis: tarhAxisStyle({ type: "value", min: 0, max: 100, axisLabel: { formatter: "{value}%" } }),
+        series: [
+            {
+                name: "نسبة الطرح (تراكمي)", type: "line", data: tendered, smooth: true, z: 2,
+                lineStyle: { color: TARH_C.dark, width: 3 }, itemStyle: { color: TARH_C.dark },
+                symbol: "circle", symbolSize: 8,
+                label: { show: true, position: "top", color: TARH_C.dark, fontWeight: 700, fontSize: 11, formatter: "{c}%" }
+            },
+            {
+                name: "نسبة الإبرام (تراكمي)", type: "line", data: finalized, smooth: true, z: 2,
+                lineStyle: { color: TARH_C.lime, width: 3 }, itemStyle: { color: TARH_C.limeDk },
+                symbol: "circle", symbolSize: 8,
+                label: { show: true, position: "bottom", color: TARH_C.limeDk, fontWeight: 700, fontSize: 11, formatter: "{c}%" }
             }
-        }]
+        ]
     };
 }
 
 /* ==========================================================================
-   رسم 4: الاتجاه الزمني للعقود المبرومة (خط)
+   رسم 4: عدد الفرص حسب السنة (كل السنوات، بلا فلاتر) + تفاصيل حالات فتح
+   المظاريف للسنة المحددة من فلتر السنة بالصفحة (تتحدّث تلقائيًا معه)
    ========================================================================== */
-function tarhBuildYearlyTrendOption(yearlyTrend) {
-    const years = yearlyTrend.map(function (y) { return String(y.year); });
-    const counts = yearlyTrend.map(function (y) { return y.count; });
+function tarhRenderYearStatusChart(rowId, envelopeByYearStatus, selectedYearStr) {
+    const row = document.getElementById(rowId);
+    if (!row) return;
 
-    return {
-        tooltip: tarhTooltip({ trigger: "axis", formatter: function (params) {
-            return '<div style="font-weight:700;">' + params[0].axisValue + '</div><div>عدد العقود المبرومة: <strong>' + tarhFormatNum(params[0].value) + '</strong></div>';
-        } }),
-        grid: { left: 60, right: 30, top: 30, bottom: 40 },
-        xAxis: tarhAxisStyle({ type: "category", data: years }),
+    const totalsByYear = {};
+    envelopeByYearStatus.forEach(function (r) { totalsByYear[r.year] = (totalsByYear[r.year] || 0) + r.count; });
+    const years = Object.keys(totalsByYear).map(Number).sort(function (a, b) { return a - b; });
+
+    var targetYear = selectedYearStr ? parseInt(selectedYearStr, 10) : null;
+    if (!targetYear || years.indexOf(targetYear) === -1) targetYear = years.length ? years[years.length - 1] : null;
+
+    const id = "tarhYearStatusChart_" + Date.now();
+    const div = document.createElement("div");
+    div.className = "chart-card tarh-yearstatus-card";
+    div.innerHTML =
+        '<div class="chart-header">' +
+            '<div class="chart-title">عدد الفرص حسب السنة</div>' +
+            '<div class="chart-badge">سنويًا</div>' +
+        '</div>' +
+        '<div class="tarh-yearstatus-body">' +
+            '<div class="echart-box" id="' + id + '"></div>' +
+            '<div class="tarh-yearstatus-detail" id="tarhYearStatusDetail"></div>' +
+        '</div>';
+    row.appendChild(div);
+
+    const box = document.getElementById(id);
+    box.style.height = "360px";
+    const chart = echarts.init(box);
+    chart.setOption({
+        tooltip: tarhTooltip({
+            trigger: "axis",
+            formatter: function (params) {
+                return '<div style="font-weight:700;">' + params[0].axisValue + '</div><div>عدد الفرص: <strong>' + tarhFormatNum(params[0].value) + '</strong></div>';
+            }
+        }),
+        grid: { left: 55, right: 20, top: 20, bottom: 36 },
+        xAxis: tarhAxisStyle({ type: "category", data: years.map(String) }),
         yAxis: tarhAxisStyle({ type: "value", axisLabel: { formatter: tarhFormatCompact } }),
         series: [{
-            name: "عقود مبرومة", type: "line", data: counts, smooth: true, z: 2,
-            areaStyle: { color: "rgba(14,110,97,0.12)" },
-            lineStyle: { color: TARH_C.dark, width: 3 },
-            itemStyle: { color: TARH_C.dark }, symbol: "circle", symbolSize: 8,
-            label: { show: true, position: "top", color: TARH_C.dark, fontWeight: 700, fontSize: 12 }
+            type: "bar", data: years.map(function (y) { return totalsByYear[y]; }), barMaxWidth: 40, cursor: "pointer",
+            itemStyle: {
+                color: function (params) { return years[params.dataIndex] === targetYear ? TARH_C.limeDk : TARH_C.dark; },
+                borderRadius: [6, 6, 0, 0]
+            },
+            label: { show: true, position: "top", color: TARH_C.dark, fontWeight: 700, fontSize: 12, formatter: function (p) { return tarhFormatNum(p.value); } }
         }]
-    };
+    });
+    tarhCharts.push(chart);
+    tarhForceResize(chart);
+
+    tarhRenderYearStatusDetail(envelopeByYearStatus, targetYear);
 }
 
-/* ==========================================================================
-   الفرص المتأخرة: فتحت مظاريفها منذ 30 يومًا فأكثر ولا يوجد لها عقد بعد - جدول
-   أحمر يعرض أقدم الفرص أولاً
-   ========================================================================== */
-function tarhRenderAtRiskTable(rows) {
-    const section = document.getElementById("tarhAtRiskSection");
-    if (!section) return;
+function tarhRenderYearStatusDetail(envelopeByYearStatus, year) {
+    const wrap = document.getElementById("tarhYearStatusDetail");
+    if (!wrap) return;
+    if (year === null) { wrap.innerHTML = '<div class="no-data-box" style="margin:0;">لا توجد بيانات</div>'; return; }
 
-    rows = rows || [];
-    if (rows.length === 0) {
-        section.innerHTML = "";
-        return;
+    // لا تُعرض الحالات اللي عددها صفر (أصلًا لا تصل هنا من الـ API، لكن نتأكد صراحة)
+    const rows = envelopeByYearStatus.filter(function (r) { return r.year === year && r.count > 0; });
+    const total = rows.reduce(function (s, r) { return s + r.count; }, 0);
+    const sorted = rows.slice().sort(function (a, b) { return b.count - a.count; });
+
+    var html = '<div class="tarh-yearstatus-detail-title">تفاصيل حالات فتح المظاريف - ' + year + '</div>';
+    if (sorted.length === 0) {
+        html += '<div class="no-data-box" style="margin:0;">لا توجد بيانات لهذه السنة</div>';
+    } else {
+        html += sorted.map(function (r) {
+            var pct = total > 0 ? Math.round((r.count / total) * 1000) / 10 : 0;
+            return '<div class="tarh-yearstatus-row">' +
+                '<span class="tarh-yearstatus-row-label">' + tarhEscape(r.status) + '</span>' +
+                '<span class="tarh-yearstatus-row-value">' + tarhFormatNum(r.count) + ' <span class="tarh-yearstatus-row-pct">(' + pct + '%)</span></span>' +
+            '</div>';
+        }).join("");
     }
-
-    var rowsHtml = rows.map(function (r) {
-        var d = new Date(r.envelopeOpeningDate);
-        var dateStr = isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB");
-        return '<tr>' +
-            '<td>' + tarhEscape(r.opportunityNumber || "—") + '</td>' +
-            '<td>' + tarhEscape(r.opportunityName || "—") + '</td>' +
-            '<td>' + tarhEscape(r.generalDepartment || "غير محدد") + '</td>' +
-            '<td>' + tarhEscape(r.status || "—") + '</td>' +
-            '<td>' + dateStr + '</td>' +
-            '<td style="color:' + TARH_C.red + ';font-weight:800;">' + tarhFormatNum(r.daysSinceEnvelope) + ' يوم</td>' +
-        '</tr>';
-    }).join("");
-
-    section.innerHTML =
-        '<div class="chart-card" style="border-color:' + TARH_C.red + ';">' +
-            '<div class="chart-header">' +
-                '<div class="chart-title" style="color:' + TARH_C.red + ';">' +
-                    '<i class="bi bi-exclamation-triangle-fill"></i> الفرص المتأخرة - فتح المظاريف منذ 30 يومًا فأكثر بلا عقد' +
-                '</div>' +
-                '<div class="chart-badge">' + tarhFormatNum(rows.length) + ' فرصة</div>' +
-            '</div>' +
-            '<div class="contract-table-wrap" style="max-height:420px;">' +
-                '<table class="contract-table">' +
-                    '<thead><tr>' +
-                        '<th>رقم الفرصة</th><th>اسم الفرصة</th><th>الإدارة العامة</th><th>الحالة</th><th>تاريخ فتح المظاريف</th><th>عدد الأيام</th>' +
-                    '</tr></thead>' +
-                    '<tbody>' + rowsHtml + '</tbody>' +
-                '</table>' +
-            '</div>' +
-        '</div>';
+    wrap.innerHTML = html;
 }
 
-function tarhRenderChart(rowId, containerId, title, badge, option, extraClass) {
+function tarhRenderChart(rowId, containerId, title, badge, option, extraClass, heightPx, subtitle, captionText) {
     const row = document.getElementById(rowId);
     if (!row) return;
     const id = containerId + "_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
@@ -353,14 +364,338 @@ function tarhRenderChart(rowId, containerId, title, badge, option, extraClass) {
     div.className = "chart-card" + (extraClass ? " " + extraClass : "");
     div.innerHTML =
         '<div class="chart-header">' +
-            '<div class="chart-title">' + tarhEscape(title) + '</div>' +
+            '<div>' +
+                '<div class="chart-title">' + tarhEscape(title) + '</div>' +
+                (subtitle ? '<div class="chart-subtitle">' + tarhEscape(subtitle) + '</div>' : '') +
+            '</div>' +
             '<div class="chart-badge">' + tarhEscape(badge) + '</div>' +
         '</div>' +
+        (captionText ? '<div class="tarh-chart-caption">' + tarhEscape(captionText) + '</div>' : '') +
         '<div class="echart-box" id="' + id + '"></div>';
     row.appendChild(div);
-    const chart = echarts.init(document.getElementById(id));
+    const box = document.getElementById(id);
+    // ارتفاع مضبوط مباشرة (Inline) بدل الاعتماد فقط على صنف CSS - يضمن أن echarts.init يقرأ
+    // الحجم الصحيح فورًا بلا أي التباس بترتيب أو توقيت تطبيق أنماط CSS الخارجية
+    if (heightPx) box.style.height = heightPx + "px";
+    const chart = echarts.init(box);
     chart.setOption(option);
+    chart._tarhCard = div;
     tarhCharts.push(chart);
+    tarhForceResize(chart);
+    return chart;
+}
+
+// إعادة قياس مؤكدة: الحاوية داخل صف Flex/Grid قد لا يكون حجمها محسوبًا نهائيًا لحظة
+// echarts.init فيرسم الرسم بحجمه الافتراضي الأصغر - نكرر resize() على أكثر من دورة رسم
+// ومؤقّت احتياطي حتى يلتقط الحجم الصحيح مهما تأخر استقرار التخطيط
+function tarhForceResize(chart) {
+    requestAnimationFrame(function () {
+        try { chart.resize(); } catch (e) {}
+        requestAnimationFrame(function () {
+            try { chart.resize(); } catch (e) {}
+        });
+    });
+    setTimeout(function () { try { chart.resize(); } catch (e) {} }, 150);
+}
+
+/* ==========================================================================
+   "حالة مدة الفرص" - قوس أخضر/أحمر قابل للضغط مباشرة (بلا زر "تتبع الفرصة" منفصل) +
+   نسب + متوسط الأيام
+   ========================================================================== */
+function tarhRenderDurationStatus(d) {
+    const row = document.getElementById("tarhChartsRow3");
+    if (!row) return;
+
+    const withinPct = d.totalCount > 0 ? d.withinPercent : 0;
+
+    const div = document.createElement("div");
+    div.className = "chart-card tarh-duration-card";
+
+    if (d.totalCount === 0) {
+        div.innerHTML =
+            '<div class="tarh-duration-header">' +
+                '<div class="tarh-duration-title"><i class="bi bi-stopwatch"></i> حالة مدة الفرص قيد الإجراء (2026)</div>' +
+            '</div>' +
+            '<div class="no-data-box" style="margin:0;"><span class="nd-icon"><i class="bi bi-inbox"></i></span>لا توجد فرص قيد الإجراء بسنة 2026 ضمن الفلاتر الحالية.</div>';
+        row.appendChild(div);
+        return;
+    }
+
+    const gaugeId = "tarhDurationGauge_" + Date.now();
+    div.innerHTML =
+        '<div class="tarh-duration-header">' +
+            '<div class="tarh-duration-title"><i class="bi bi-stopwatch"></i> حالة مدة الفرص قيد الإجراء (2026)</div>' +
+        '</div>' +
+        '<div class="echart-box" id="' + gaugeId + '"></div>' +
+        '<div class="tarh-duration-legend">' +
+            '<div class="tarh-duration-legend-item"><span class="tarh-duration-dot within"></span> ضمن 40 يومًا — ' + tarhFormatNum(d.withinCount) + '</div>' +
+            '<div class="tarh-duration-legend-item"><span class="tarh-duration-dot over"></span> تجاوزت 40 يومًا — ' + tarhFormatNum(d.overCount) + '</div>' +
+        '</div>' +
+        '<div class="tarh-duration-avg">متوسط الأيام منذ فتح المظاريف: <strong>' + d.averageDays.toFixed(1) + '</strong> يوم</div>';
+
+    row.appendChild(div);
+
+    const gaugeBox = document.getElementById(gaugeId);
+    gaugeBox.style.height = "230px";
+    const gauge = echarts.init(gaugeBox);
+    gauge.setOption(tarhBuildDurationGaugeOption(withinPct, d.withinCount, d.overCount));
+    tarhCharts.push(gauge);
+    tarhForceResize(gauge);
+
+    // الضغط على الجزء الأخضر من القوس يفتح "تتبع الفرصة" مفلترة على الفرص ضمن 40 يومًا فقط،
+    // والجزء الأحمر يفتحها مفلترة على المتجاوزة فقط - بديل مباشر عن زر "تتبع الفرصة" العام
+    gauge.on("click", function (params) {
+        if (!params.data || params.data.name === "gap") return;
+        tarhOpenTrackModal(params.data.name === "within" ? "within" : "over");
+    });
+}
+
+/* ==========================================================================
+   قوس "حالة مدة الفرص" - نسبة الفرص ضمن 40 يومًا (أخضر) مقابل المتجاوزة (أحمر).
+   مبني كـ Donut (Pie) بدل Gauge حتى تكون كل قطعة لونية عنصر بيانات مستقل قابل
+   للضغط بحدث click قياسي (الـ gauge الأصلي قطعة تلوين واحدة بلا نقاط بيانات
+   منفصلة يمكن تمييزها بالضغط)؛ قطعة "gap" شفافة تصنع فتحة نصف الدائرة بالأسفل
+   بنفس شكل القوس السابق تمامًا (فتحة 120° من إجمالي 360°)
+   ========================================================================== */
+function tarhBuildDurationGaugeOption(withinPct, withinCount, overCount) {
+    var total = withinCount + overCount;
+    return {
+        tooltip: tarhTooltip({
+            formatter: function (p) {
+                if (p.data.name === "gap") return "";
+                var label = p.data.name === "within" ? "ضمن 40 يومًا" : "تجاوزت 40 يومًا";
+                return '<div style="font-weight:700;">' + label + '</div><div>' + tarhFormatNum(p.data.value) + ' فرصة - اضغطي لعرضها</div>';
+            }
+        }),
+        series: [{
+            type: "pie",
+            startAngle: 210, clockwise: true,
+            radius: ["80%", "92%"],
+            center: ["50%", "62%"],
+            avoidLabelOverlap: false,
+            label: { show: false }, labelLine: { show: false },
+            emphasis: { scaleSize: 6 },
+            data: [
+                { value: withinCount, name: "within", itemStyle: { color: TARH_C.dark } },
+                { value: overCount, name: "over", itemStyle: { color: TARH_C.red } },
+                { value: total * 0.5, name: "gap", itemStyle: { color: "transparent" }, label: { show: false }, tooltip: { show: false }, silent: true }
+            ]
+        }],
+        graphic: [
+            {
+                type: "text", left: "center", top: "48%",
+                style: { text: withinPct.toFixed(1) + "%", fontSize: 22, fontWeight: 800, fill: TARH_C.text, fontFamily: "Cairo", textAlign: "center" }
+            },
+            {
+                type: "text", left: "center", top: "62%",
+                style: { text: "ضمن 40 يومًا", fontSize: 10, fontWeight: 700, fill: TARH_C.muted, textAlign: "center" }
+            }
+        ]
+    };
+}
+
+/* ==========================================================================
+   نافذة "تتبع الفرصة": بحث عن فرصة ثم عرض رحلتها Timeline
+   ========================================================================== */
+let tarhOpportunityOptionsLoaded = false;
+let tarhOpportunityOptionsCache = [];
+
+async function tarhLoadOpportunityOptions() {
+    if (tarhOpportunityOptionsLoaded || !window.TARH_OPPORTUNITY_OPTIONS_URL) return;
+    try {
+        const resp = await fetch(window.TARH_OPPORTUNITY_OPTIONS_URL);
+        tarhOpportunityOptionsCache = await resp.json();
+        tarhOpportunityOptionsLoaded = true;
+    } catch (err) {
+        console.error("تعذر تحميل قائمة الفرص:", err);
+    }
+}
+
+function tarhOppDotClass(durationStatus) {
+    if (durationStatus === "ضمن 40 يوم") return "within";
+    if (durationStatus === "تجاوزت 40 يوم") return "over";
+    return "unknown";
+}
+
+// null = كل الفرص، "within" = ضمن 40 يومًا فقط، "over" = المتجاوزة فقط - يُضبَط عند فتح
+// النافذة (من زر "تتبع الفرصة" العام أو من الضغط على جزء لوني بقوس "حالة مدة الفرص")
+let tarhModalStatusFilter = null;
+
+// تُعرض القائمة دائمًا كاملة لكل الفرص المطابقة للون المختار (بلا بحث نصي) - تُبنى من جديد
+// في كل مرة تُفتح فيها النافذة أو يُضغط "رجوع" حتى تبقى موثوقة مهما تكرّر الفتح والإغلاق
+function tarhRenderOpportunityList() {
+    const list = document.getElementById("tarhOpportunityList");
+    if (!list) return;
+
+    var matches = tarhOpportunityOptionsCache;
+    if (tarhModalStatusFilter === "within") {
+        matches = matches.filter(function (o) { return o.durationStatus === "ضمن 40 يوم"; });
+    } else if (tarhModalStatusFilter === "over") {
+        matches = matches.filter(function (o) { return o.durationStatus === "تجاوزت 40 يوم"; });
+    }
+
+    if (matches.length === 0) {
+        list.innerHTML = '<div class="tarh-opp-empty">لا توجد فرص مطابقة</div>';
+    } else {
+        list.innerHTML = matches.map(function (o) {
+            return '<div class="tarh-opp-item ' + tarhOppDotClass(o.durationStatus) + '" data-number="' + tarhEscape(o.opportunityNumber) + '">' +
+                '<span class="tarh-opp-item-text"><span class="tarh-opp-item-number">' + tarhEscape(o.opportunityNumber) + '</span>' +
+                    (o.opportunityName ? ' — ' + tarhEscape(o.opportunityName) : '') + '</span>' +
+            '</div>';
+        }).join("");
+    }
+    list.style.display = "";
+
+    list.querySelectorAll(".tarh-opp-item").forEach(function (item) {
+        item.addEventListener("click", function () {
+            tarhSearchOpportunity(item.getAttribute("data-number"));
+        });
+    });
+}
+
+function tarhOpenTrackModal(statusFilter) {
+    tarhModalStatusFilter = statusFilter || null;
+    const overlay = document.getElementById("tarhTrackModalOverlay");
+    if (!overlay) return;
+
+    // إعادة ضبط كاملة في كل فتحة (بدل الاعتماد على أي حالة سابقة بالـ DOM) حتى تبقى القائمة
+    // موثوقة دائمًا مهما تكرّر الفتح/الإغلاق أو التنقّل بين الألوان
+    var result = document.getElementById("tarhTimelineResult");
+    if (result) result.innerHTML = "";
+    var list = document.getElementById("tarhOpportunityList");
+    if (list) list.style.display = "";
+
+    var titleEl = document.querySelector(".tarh-modal-title");
+    if (titleEl) {
+        var label = tarhModalStatusFilter === "within" ? "الفرص ضمن 40 يومًا"
+            : tarhModalStatusFilter === "over" ? "الفرص المتجاوزة 40 يومًا"
+            : "تتبع الفرصة";
+        titleEl.innerHTML = '<i class="bi bi-signpost-split"></i> ' + tarhEscape(label);
+    }
+
+    overlay.style.display = "flex";
+    tarhLoadOpportunityOptions().then(tarhRenderOpportunityList);
+}
+
+function tarhCloseTrackModal() {
+    const overlay = document.getElementById("tarhTrackModalOverlay");
+    if (overlay) overlay.style.display = "none";
+}
+
+function tarhFormatDate(iso) {
+    if (!iso) return null;
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? null : d.toLocaleDateString("en-GB");
+}
+
+function tarhRenderTimelineStep(label, iso, isPending) {
+    var dateStr = tarhFormatDate(iso);
+    return '<div class="tarh-timeline-step' + (isPending ? ' pending' : '') + '">' +
+        '<div class="dot"><i class="bi bi-check-lg"></i></div>' +
+        '<div class="label">' + tarhEscape(label) + '</div>' +
+        '<div class="date">' + (dateStr || 'لا يوجد تاريخ') + '</div>' +
+    '</div>';
+}
+
+function tarhRenderTimelineConnector(days) {
+    return '<div class="tarh-timeline-connector">' +
+        (days !== null && days !== undefined ? '<div class="days">' + days + ' يوم</div>' : '') +
+    '</div>';
+}
+
+var TARH_BACK_BTN_HTML =
+    '<button type="button" class="tarh-timeline-back" id="tarhTimelineBack">' +
+        '<i class="bi bi-arrow-right"></i><span>رجوع لقائمة الفرص</span>' +
+    '</button>';
+
+function tarhWireBackButton() {
+    var backBtn = document.getElementById("tarhTimelineBack");
+    if (backBtn) backBtn.addEventListener("click", function (e) {
+        // نوقف انتشار الحدث حتى لا يصطدم بمستمع "إغلاق القائمة عند الضغط خارجها" على
+        // مستوى document ويُغلق القائمة فورًا بعد ما فتحناها بنفس الضغطة
+        e.stopPropagation();
+        tarhBackToOpportunityList();
+    });
+}
+
+function tarhBackToOpportunityList() {
+    var result = document.getElementById("tarhTimelineResult");
+    if (result) result.innerHTML = "";
+    var list = document.getElementById("tarhOpportunityList");
+    if (list) list.style.display = "";
+    tarhRenderOpportunityList();
+}
+
+async function tarhSearchOpportunity(rawValue) {
+    const result = document.getElementById("tarhTimelineResult");
+    if (!result) return;
+
+    // نحاول استخراج رقم الفرصة من القيمة المُختارة بصيغة "رقم — اسم"، وإلا نستخدم القيمة كما هي
+    var opportunityNumber = rawValue.indexOf(" — ") > -1 ? rawValue.split(" — ")[0].trim() : rawValue.trim();
+    if (!opportunityNumber) { result.innerHTML = ""; return; }
+
+    // إخفاء القائمة فور اختيار فرصة - النتيجة (رحلة الفرصة) تحل محلها بنفس مساحة النافذة
+    var list = document.getElementById("tarhOpportunityList");
+    if (list) list.style.display = "none";
+
+    result.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">جارِ البحث...</div>';
+
+    try {
+        const resp = await fetch(window.TARH_OPPORTUNITY_TIMELINE_URL + "?opportunityNumber=" + encodeURIComponent(opportunityNumber));
+        const t = await resp.json();
+
+        if (!t.found) {
+            result.innerHTML = TARH_BACK_BTN_HTML +
+                '<div class="no-data-box" style="margin-top:14px;"><span class="nd-icon"><i class="bi bi-inbox"></i></span>لم يتم العثور على فرصة بهذا الرقم أو الاسم لها رقم عقد فعلي.</div>';
+            tarhWireBackButton();
+            return;
+        }
+
+        var isWithinNum = t.durationStatus === "ضمن 40 يوم";
+        var numColor = t.durationStatus ? (isWithinNum ? TARH_C.limeDk : TARH_C.red) : "inherit";
+        var html = TARH_BACK_BTN_HTML;
+        html += '<div style="margin-top:16px;">' +
+            '<div style="font-weight:800;color:var(--brand-dark);">' + tarhEscape(t.opportunityName || t.opportunityNumber) + '</div>' +
+            '<div style="font-size:.82rem;color:var(--muted);margin-top:2px;">رقم الفرصة: ' +
+                '<strong style="color:' + numColor + ';">' + tarhEscape(t.opportunityNumber) + '</strong>' +
+                ' • رقم العقد: ' + tarhEscape(t.contractNumber) + ' • الحالة: ' + tarhEscape(t.status || "—") + '</div>' +
+        '</div>';
+
+        html += '<div class="tarh-timeline">' +
+            tarhRenderTimelineStep("فتح المظاريف", t.envelopeOpeningDate, !t.envelopeOpeningDate) +
+            tarhRenderTimelineConnector(t.envelopeToAwardDays) +
+            tarhRenderTimelineStep("الترسية", t.awardDate, !t.awardDate) +
+        '</div>';
+
+        if (t.totalDays !== null && t.totalDays !== undefined) {
+            var isWithin = t.durationStatus === "ضمن 40 يوم";
+            html += '<div class="tarh-timeline-summary">' +
+                '<div>إجمالي مدة الفرصة</div>' +
+                '<div class="total">' + t.totalDays + ' يوم</div>' +
+                '<div class="tarh-timeline-badge ' + (isWithin ? 'within' : 'over') + '">' +
+                    (isWithin ? '🟢 ' : '🔴 ') + tarhEscape(t.durationStatus) +
+                '</div>' +
+            '</div>';
+        } else {
+            html += '<div class="no-data-box" style="margin-top:14px;">لا يمكن حساب إجمالي المدة - يلزم توفّر تاريخَي فتح المظاريف وتوقيع العقد معًا.</div>';
+        }
+
+        result.innerHTML = html;
+        tarhWireBackButton();
+    } catch (err) {
+        console.error("تعذر تحميل رحلة الفرصة:", err);
+        result.innerHTML = TARH_BACK_BTN_HTML +
+            '<div class="no-data-box" style="margin-top:14px;">تعذّر تحميل بيانات الفرصة.</div>';
+        tarhWireBackButton();
+    }
+}
+
+function tarhInitTrackModal() {
+    var closeBtn = document.getElementById("tarhTrackModalClose");
+    var overlay = document.getElementById("tarhTrackModalOverlay");
+
+    if (closeBtn) closeBtn.addEventListener("click", tarhCloseTrackModal);
+    if (overlay) overlay.addEventListener("click", function (e) { if (e.target === overlay) tarhCloseTrackModal(); });
 }
 
 /* ==========================================================================
@@ -386,8 +721,6 @@ async function tarhLoad() {
             const el = document.getElementById(id);
             if (el) el.innerHTML = "";
         });
-        var atRiskEl = document.getElementById("tarhAtRiskSection");
-        if (atRiskEl) atRiskEl.innerHTML = "";
 
         tarhBuildFilterBar(data);
 
@@ -402,20 +735,58 @@ async function tarhLoad() {
 
         tarhRenderKpiCards(data.typeSummary, data.totalOpportunities);
 
-        tarhRenderChart("tarhChartsRow1", "tarhDeptChart", "قيمة وعدد العقود حسب الإدارة العامة", "الإدارات", tarhBuildDeptChartOption(data.deptChart), "ft-items-card");
-        tarhRenderChart("tarhChartsRow1", "tarhFinalizedGauge", "نسبة العقود المبرومة", "الإبرام", tarhBuildFinalizedGaugeOption(data.finalizedPercent, data.finalizedCount, data.totalCount), "ft-items-card");
+        // رسم 1: قيمة وعدد العقود المبرمة حسب الإدارة العامة - قابل للضغط لتصفية رسم 2
+        var deptItems = tarhComboItemsFromDept(data.deptSummary);
+        var deptSortedByValue = deptItems.slice().sort(function (a, b) { return b.totalValue - a.totalValue; });
+        var selectedDept = deptSortedByValue.length ? deptSortedByValue[0].label : null;
 
-        tarhRenderChart(
-            "tarhChartsRow2", "tarhActivityChart",
-            "البنود الفرعية (المحفظة الفرعية) - " + data.activitiesDepartment,
-            "حسب البند الفرعي",
-            tarhBuildActivityChartOption(data.activityChart),
-            "ft-items-card"
+        var deptChart = tarhRenderChart(
+            "tarhChartsRow1", "tarhDeptChart",
+            "قيمة وعدد العقود المبرمة حسب الإدارة العامة",
+            "اضغطي إدارة",
+            tarhBuildComboBarLineOption(deptItems, selectedDept),
+            "tarh-combo-card",
+            400
         );
 
-        tarhRenderChart("tarhChartsRow3", "tarhYearlyTrend", "الاتجاه الزمني للعقود المبرومة", "سنويًا", tarhBuildYearlyTrendOption(data.yearlyFinalizedTrend));
+        var subDeptChart = tarhRenderChart(
+            "tarhChartsRow1", "tarhSubDeptChart",
+            "قيمة وعدد العقود المبرمة حسب الإدارة الفرعية",
+            selectedDept || "—",
+            tarhBuildComboBarLineOption(tarhComboItemsFromSubDept(data.finalizedByPortfolio, selectedDept), null),
+            "tarh-combo-card",
+            400
+        );
 
-        tarhRenderAtRiskTable(data.atRiskOpportunities);
+        if (deptChart) {
+            deptChart.on("click", function (params) {
+                if (params.componentType !== "series" || !params.name || params.name === selectedDept) return;
+                selectedDept = params.name;
+                deptChart.setOption(tarhBuildComboBarLineOption(deptItems, selectedDept), true);
+                if (subDeptChart) {
+                    subDeptChart.setOption(tarhBuildComboBarLineOption(tarhComboItemsFromSubDept(data.finalizedByPortfolio, selectedDept), null), true);
+                    var badgeEl = subDeptChart._tarhCard && subDeptChart._tarhCard.querySelector(".chart-badge");
+                    if (badgeEl) badgeEl.textContent = selectedDept;
+                    tarhForceResize(subDeptChart);
+                }
+                tarhForceResize(deptChart);
+            });
+        }
+
+        // رسم 2 (الصف الثاني): عدد الفرص حسب السنة + تفاصيل حالات فتح المظاريف للسنة المختارة
+        tarhRenderYearStatusChart("tarhChartsRow2", data.envelopeByYearStatus, tarhCurrentFilters.year);
+
+        // رسم 3 (الصف الثالث): نسبة الطرح ونسبة الإبرام حسب السنة، وجنبها حالة مدة الفرص
+        // قيد الإجراء (قوس قابل للضغط) بنفس الصف
+        tarhRenderChart(
+            "tarhChartsRow3", "tarhYearlyRateChart",
+            "نسبة الطرح ونسبة الإبرام حسب السنة",
+            "تراكمي",
+            tarhBuildYearlyRateOption(data.yearlyRates),
+            "tarh-rate-card tarh-line-card",
+            280
+        );
+        tarhRenderDurationStatus(data.durationStatus);
     } catch (err) {
         console.error("تعذر تحميل بيانات الطرح:", err);
         if (contentEl) contentEl.style.display = "none";
@@ -470,11 +841,75 @@ function tarhInitUpload() {
     });
 }
 
+/* ==========================================================================
+   تصدير Excel / طباعة PDF - بنفس الفلاتر الحالية بالضبط
+   ========================================================================== */
+function tarhExportQueryString() {
+    return "?department=" + encodeURIComponent(tarhCurrentFilters.department) +
+        "&status=" + encodeURIComponent(tarhCurrentFilters.status) +
+        "&contractNumber=" + encodeURIComponent(tarhCurrentFilters.contractNumber) +
+        "&year=" + encodeURIComponent(tarhCurrentFilters.year) +
+        "&quarter=" + encodeURIComponent(tarhCurrentFilters.quarter);
+}
+
+function tarhInitExport() {
+    const excelBtn = document.getElementById("tarhExportExcelBtn");
+    const pdfBtn = document.getElementById("tarhExportPdfBtn");
+
+    if (excelBtn && window.TARH_EXPORT_EXCEL_URL) {
+        excelBtn.addEventListener("click", function () {
+            window.location.href = window.TARH_EXPORT_EXCEL_URL + tarhExportQueryString();
+        });
+    }
+
+    if (pdfBtn && window.TARH_EXPORT_DATA_URL) {
+        pdfBtn.addEventListener("click", async function () {
+            pdfBtn.disabled = true;
+            try {
+                const resp = await fetch(window.TARH_EXPORT_DATA_URL + tarhExportQueryString());
+                const rows = await resp.json();
+
+                const tbody = document.getElementById("tarhExportTableBody");
+                if (tbody) {
+                    tbody.innerHTML = rows.map(function (r) {
+                        var dateStr = "";
+                        if (r.contractDate) {
+                            var d = new Date(r.contractDate);
+                            if (!isNaN(d.getTime())) dateStr = d.toLocaleDateString("en-GB");
+                        }
+                        return '<tr>' +
+                            '<td>' + tarhEscape(r.opportunityNumber || "") + '</td>' +
+                            '<td>' + tarhEscape(r.contractNumber || "") + '</td>' +
+                            '<td>' + tarhEscape(r.opportunityName || "") + '</td>' +
+                            '<td>' + tarhFormatNum(r.value) + '</td>' +
+                            '<td>' + tarhEscape(r.generalDepartment || "") + '</td>' +
+                            '<td>' + tarhEscape(r.subPortfolio || "") + '</td>' +
+                            '<td>' + (r.contractYear || "") + '</td>' +
+                            '<td>' + dateStr + '</td>' +
+                        '</tr>';
+                    }).join("");
+                }
+
+                var dateEl = document.getElementById("tarhPrintDate");
+                if (dateEl) dateEl.textContent = new Date().toLocaleDateString("ar-SA");
+
+                window.print();
+            } catch (err) {
+                console.error("تعذّر تجهيز بيانات الطباعة:", err);
+            } finally {
+                pdfBtn.disabled = false;
+            }
+        });
+    }
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     if (!window.TARH_DATA_URL) return;
 
     tarhLoad();
     tarhInitUpload();
+    tarhInitExport();
+    tarhInitTrackModal();
 
     window.addEventListener("resize", function () {
         tarhCharts.forEach(function (c) { try { c.resize(); } catch (e) {} });

@@ -384,7 +384,7 @@ function disposeCharts() {
 }
 
 function clearContainers() {
-    ["kpiGrid", "chartsRow1", "chartsRow2"].forEach(function (id) {
+    ["kpiGrid", "chartsRow1", "chartsRow2", "chartsRow3"].forEach(function (id) {
         const el = document.getElementById(id);
         if (el) el.innerHTML = "";
     });

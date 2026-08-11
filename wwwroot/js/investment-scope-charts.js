@@ -109,23 +109,23 @@ function renderKPIs() {
    تُعرَضان جنب رسم "الفوترة والتحصيل حسب الإدارة" (بدل مؤشر Gauge منفصل - نسبة
    التحصيل الإجمالية انتقلت لبطاقة KPI الرابعة أعلى الصفحة)
    ========================================================================== */
+// الأيقونة على اليمين جنب النص (بدل فوق النص بمنتصف مربّع)، واسم الإدارة كاملاً بلا اقتصاص
+// (كان يُقصّ بـ ellipsis) - كل شيء بحجم أكبر وأوضح
 function aiInsightSquareHtml(icon, label, dept, metric) {
-    return '<div style="flex:1 1 0;min-width:0;background:var(--surface);border:1px solid var(--border);' +
-            'border-radius:var(--radius-md);box-shadow:var(--shadow-xs);padding:12px;' +
-            'display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;aspect-ratio:1;">' +
-        '<div style="width:34px;height:34px;border-radius:10px;background:rgba(14,110,97,0.08);color:var(--brand-dark);' +
-            'display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;"><i class="bi ' + icon + '"></i></div>' +
-        '<div style="font-size:.7rem;color:var(--muted);font-weight:700;">' + label + '</div>' +
-        '<div style="font-weight:800;color:var(--text);font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">' + escapeHtml(dept || "—") + '</div>' +
-        (metric ? '<div style="font-size:.76rem;color:var(--brand-dark);font-weight:700;">' + metric + '</div>' : '') +
+    return '<div class="ai-insight-card">' +
+        '<div class="ai-insight-icon"><i class="bi ' + icon + '"></i></div>' +
+        '<div class="ai-insight-text">' +
+            '<div class="ai-insight-label">' + label + '</div>' +
+            '<div class="ai-insight-dept">' + escapeHtml(dept || "—") + '</div>' +
+            (metric ? '<div class="ai-insight-metric">' + metric + '</div>' : '') +
+        '</div>' +
     '</div>';
 }
 
-// بطاقتان صغيرتان مربعتان جنب بعض، ضمن حاوية واحدة بنفس صف رسم الفوترة/التحصيل (بدل بطاقتين
-// كاملتي العرض كل واحدة تأخذ عمودًا مستقلاً بالشبكة)
+// بطاقتان (بنفس الحجم) مكدّستان عموديًا ضمن عمود واحد بجانب الدونت بالصف الثاني
 function renderAiInsightCards(row, ai) {
     const wrap = document.createElement("div");
-    wrap.style.cssText = "display:flex;gap:10px;grid-column:1 / -1;max-width:340px;";
+    wrap.className = "ai-insight-wrap";
     wrap.innerHTML =
         aiInsightSquareHtml("bi-trophy", "أعلى إدارة في نسبة التحصيل", ai.topCollectionRateDept, ai.topCollectionRateDept ? ai.topCollectionRatePercent.toFixed(1) + "%" : null) +
         aiInsightSquareHtml("bi-receipt", "أكثر إدارة من حيث عدد الفواتير", ai.topInvoiceCountDept, ai.topInvoiceCountDept ? (formatNum(ai.topInvoiceCountAmount) + " فاتورة") : null);
@@ -150,6 +150,10 @@ function buildAiMainChartOption(labels, paidValues, unpaidValues) {
             formatter: function (p) { return p.value > 0 ? formatCompact(p.value) : ""; }
         };
     }
+    // خط "الإجمالي" فوق كل عمود مكدَّس (محصل+غير محصل) - يجعل الإجمالي ظاهرًا دائمًا برقم
+    // ثابت بدل الاعتماد على تمرير الفأرة فوق الرسم لمعرفته
+    const totals = labels.map(function (_, i) { return (paidValues[i] || 0) + (unpaidValues[i] || 0); });
+
     return {
         tooltip: tooltipStyle({
             trigger: "axis", axisPointer: { type: "shadow" },
@@ -157,6 +161,7 @@ function buildAiMainChartOption(labels, paidValues, unpaidValues) {
                 let html = '<div style="font-weight:700;margin-bottom:6px;">' + params[0].axisValue + '</div>';
                 let total = 0;
                 params.forEach(function (p) {
+                    if (p.seriesName === "الإجمالي") return;
                     total += p.value;
                     html += '<div style="display:flex;align-items:center;gap:6px;">' +
                         '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + p.color + '"></span>' +
@@ -167,12 +172,18 @@ function buildAiMainChartOption(labels, paidValues, unpaidValues) {
             }
         }),
         legend: { bottom: 0, textStyle: Object.assign({}, AXIS_LABEL_STYLE), itemWidth: 10, itemHeight: 10 },
-        grid: { left: 50, right: 16, top: 16, bottom: 46 },
+        grid: { left: 50, right: 16, top: 40, bottom: 46 },
         xAxis: axisStyle({ type: "category", data: labels, axisLabel: { interval: 0, fontSize: 11 } }),
         yAxis: axisStyle({ type: "value", axisLabel: { formatter: formatCompact } }),
         series: [
             { name: "محصل", type: "bar", stack: "s", data: paidValues, barMaxWidth: 70, itemStyle: { color: C.dark }, label: dataLabel() },
-            { name: "غير محصل", type: "bar", stack: "s", data: unpaidValues, barMaxWidth: 70, itemStyle: { color: C.red }, label: dataLabel() }
+            { name: "غير محصل", type: "bar", stack: "s", data: unpaidValues, barMaxWidth: 70, itemStyle: { color: C.red }, label: dataLabel() },
+            {
+                name: "الإجمالي", type: "line", data: totals, symbol: "circle", symbolSize: 7, z: 3,
+                lineStyle: { color: C.lime, width: 2.5 }, itemStyle: { color: C.lime, borderColor: "#fff", borderWidth: 2 },
+                label: { show: true, position: "top", color: C.text, fontWeight: 800, fontSize: 12, formatter: function (p) { return formatCompact(p.value); } },
+                tooltip: { show: false }
+            }
         ]
     };
 }
@@ -201,58 +212,77 @@ function renderAiMainChart(row) {
     });
 }
 
-// تُستدعى أولاً بترتيب تحميل اللوحة - رسم الفوترة/التحصيل يظهر قبل البطاقتين بنفس الصف
+// الصف الأول: رسم الفوترة/التحصيل حسب الإدارة العامة، جنب رسم الإدارات الفرعية
 function renderTopItemsChart() {
     const row1 = document.getElementById("chartsRow1");
     if (!row1) return;
     renderAiMainChart(row1);
 }
 
-// تُستدعى لاحقًا - البطاقتان تُضافان بعد رسم الفوترة/التحصيل بنفس الصف
+// الصف الثاني: الدونت + بطاقتا المعلومات الذكية (البطاقتان الآن هنا بدل الصف الأول)
 function renderEntityMonthChart() {
-    const row1 = document.getElementById("chartsRow1");
-    if (!row1) return;
-
-    getAmanahInvestmentData().then(function (ai) {
-        if (!document.getElementById("chartsRow1") || !ai) return;
-        renderAiInsightCards(row1, ai);
-    });
-}
-
-/* ==========================================================================
-   5) Donut: توزيع البنود حسب التصنيف (استثمار / تأجير مؤقت) - تُعرض أولاً بالصف الثاني
-   6) Stacked Horizontal Bar: كل الإدارات الفرعية - جنب الدونت
-   ========================================================================== */
-function renderSubItemsBarChart() {
     const row2 = document.getElementById("chartsRow2");
     if (!row2) return;
 
     getAmanahInvestmentData().then(function (ai) {
         if (!document.getElementById("chartsRow2") || !ai) return;
         renderAiDonut(row2, ai);
-        renderAiSubDeptBar(row2, ai);
+        renderAiInsightCards(row2, ai);
     });
 }
 
 /* ==========================================================================
-   4) Line Chart: اتجاه التحصيل الشهري (محصل + مفوتر للمقارنة) - أسفل الصف الثاني، بعرض
-   كامل وطول أكبر، مع أرقام ثابتة الظهور على كل نقطة
+   الإدارات الفرعية (Stacked Horizontal Bar) - جنب رسم الفوترة/التحصيل بنفس الصف
+   الأول. تعرض افتراضيًا إدارات أول إدارة عامة فقط (وليس كل الإدارات الفرعية دفعة
+   واحدة) - وتتحدّث تلقائيًا حسب فلتر "الإدارة العامة" أعلى الصفحة عند اختياره
+   ========================================================================== */
+function renderSubItemsBarChart() {
+    const row1 = document.getElementById("chartsRow1");
+    if (!row1) return;
+
+    getAmanahInvestmentData().then(function (ai) {
+        if (!document.getElementById("chartsRow1") || !ai) return;
+
+        const activeFilter = aiExtractDeptFilters();
+        if (activeFilter || !ai.deptGeneralLabels || !ai.deptGeneralLabels.length) {
+            renderAiSubDeptBar(row1, ai, activeFilter ? activeFilter.deptGeneral : null);
+            return;
+        }
+
+        // بلا فلتر إدارة نشط: نطلب بيانات أول إدارة عامة تحديدًا (بنفس ترتيب رسم الفوترة/التحصيل)
+        // بدل عرض كل الإدارات الفرعية مجتمعة دفعة واحدة
+        const firstDept = ai.deptGeneralLabels[0];
+        const qs = (typeof currentFilterParams === "function") ? currentFilterParams().toString() : "";
+        const params = new URLSearchParams(qs);
+        params.set("deptGeneral", firstDept);
+        fetch("/Dashboard/AmanahInvestment/Data?" + params.toString())
+            .then(function (resp) { return resp.ok ? resp.json() : null; })
+            .then(function (scoped) {
+                if (!document.getElementById("chartsRow1")) return;
+                renderAiSubDeptBar(row1, scoped || ai, firstDept);
+            })
+            .catch(function () { renderAiSubDeptBar(row1, ai, firstDept); });
+    });
+}
+
+/* ==========================================================================
+   4) Line Chart: اتجاه التحصيل الشهري (محصل + مفوتر للمقارنة) - الصف الأخير، بعرض كامل
+   وحجم أصغر (كان طويلاً جدًا)، مع أرقام ثابتة الظهور على كل نقطة
    ========================================================================== */
 function renderQuarterChart() {
-    const row2 = document.getElementById("chartsRow2");
-    if (!row2) return;
+    const row3 = document.getElementById("chartsRow3");
+    if (!row3) return;
 
     const id = "aiTrend_" + Date.now();
     const div = document.createElement("div");
     div.className = "chart-card";
-    div.style.cssText = "grid-column:1 / -1;"; // عرض كامل الصف
     div.innerHTML =
         '<div class="chart-header">' +
             '<div class="chart-title">اتجاه التحصيل الشهري</div>' +
             '<div class="chart-badge">محصل / مفوتر</div>' +
         '</div>' +
-        '<div class="echart-box" id="' + id + '" style="height:400px;"></div>';
-    row2.appendChild(div);
+        '<div class="echart-box" id="' + id + '" style="height:260px;"></div>';
+    row3.appendChild(div);
 
     const container = document.getElementById(id);
     const chart = echarts.init(container);
@@ -340,7 +370,10 @@ function renderAiDonut(row2, ai) {
     } catch (e) {}
 }
 
-function renderAiSubDeptBar(row2, ai) {
+// تدرّجات ألوان الشعار فقط - لتلوين كل عمود بلون مختلف بدل لون واحد موحّد
+const AI_BAR_PALETTE = [C.dark, C.mid, C.lime, C.light, "#5F9E1F"];
+
+function renderAiSubDeptBar(row1b, ai, deptLabel) {
     if (!ai.subDepartments || !ai.subDepartments.length) return;
 
     const id = "aiSubBar_" + Date.now();
@@ -351,8 +384,11 @@ function renderAiSubDeptBar(row2, ai) {
             '<div class="chart-title">الإدارات الفرعية</div>' +
             '<div class="chart-badge">إجمالي القيمة</div>' +
         '</div>' +
+        '<div class="chart-subtitle" style="margin-bottom:10px;">' +
+            (deptLabel ? 'الإدارات الفرعية التابعة لـ«' + escapeHtml(deptLabel) + '» - اختاري إدارة عامة أخرى من الفلتر أعلى الصفحة لعرض إداراتها الفرعية' : 'إجمالي قيمة كل إدارة فرعية') +
+        '</div>' +
         '<div class="echart-box" id="' + id + '"></div>';
-    row2.appendChild(div);
+    row1b.appendChild(div);
 
     const chart = echarts.init(document.getElementById(id));
     charts.subItemsBar = chart;
@@ -360,8 +396,13 @@ function renderAiSubDeptBar(row2, ai) {
 
     // مرتّبة تنازليًا من الخادم أصلاً حسب إجمالي القيمة؛ نعكسها هنا فقط لأن محور الفئات يرسم من الأسفل للأعلى
     const rows = ai.subDepartments.slice().reverse();
+    const n = rows.length;
     const labels = rows.map(function (r) { return r.name; });
-    const totals = rows.map(function (r) { return r.totalValue; });
+    const barData = rows.map(function (r, i) {
+        // نفس ترتيب الألوان يعكسه ترتيب rows.reverse() أعلاه - i=0 هنا هو آخر عمود (الأصغر
+        // قيمة) وليس الأول، لذا نلوّن من نهاية اللائحة الأصلية حتى يبقى أعلى عمود قيمةً بأول لون
+        return { value: r.totalValue, itemStyle: { color: AI_BAR_PALETTE[(n - 1 - i) % AI_BAR_PALETTE.length], borderRadius: [0, 6, 6, 0] } };
+    });
 
     try {
         chart.setOption({
@@ -377,8 +418,7 @@ function renderAiSubDeptBar(row2, ai) {
             xAxis: axisStyle({ type: "value", show: false }),
             yAxis: axisStyle({ type: "category", data: labels, axisLabel: { width: 120, overflow: "break", lineHeight: 14, fontSize: 11 } }),
             series: [{
-                name: "الإجمالي", type: "bar", data: totals, barMaxWidth: 20,
-                itemStyle: { color: C.dark, borderRadius: [0, 6, 6, 0] },
+                name: "الإجمالي", type: "bar", data: barData, barMaxWidth: 20,
                 label: {
                     show: true, position: "right", color: C.axisText, fontWeight: 700, fontSize: 11,
                     formatter: function (p) { return formatCompact(p.value); }

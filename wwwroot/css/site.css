@@ -861,16 +861,165 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
     min-width: 0; /* يمنع طفح محتوى الرسم عن حدود البطاقة عند ضيق العمود */
 }
 .chart-card:hover { box-shadow: var(--shadow-sm); }
-.chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.chart-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; gap: 10px; }
 .chart-title { font-family: "Cairo", sans-serif; font-size: .86rem; font-weight: 700; color: var(--brand-dark); }
-.chart-badge { font-size: .66rem; font-weight: 700; background: rgba(14,110,97,0.08); color: var(--brand-dark); padding: 3px 10px; border-radius: 20px; }
+.chart-subtitle { font-size: .72rem; color: var(--muted); font-weight: 600; margin-top: 3px; }
+.chart-badge { font-size: .66rem; font-weight: 700; background: rgba(14,110,97,0.08); color: var(--brand-dark); padding: 3px 10px; border-radius: 20px; flex: none; }
+/* شريط تعليقي صغير يعلو منطقة الرسم مباشرة (تحت العنوان الفرعي) - يوضّح معنى الأرقام
+   داخل الخلايا/الأعمدة قبل ما تصل عين القارئ للرسم نفسه */
+.tarh-chart-caption {
+    font-size: .64rem; font-weight: 700; color: var(--brand-dark); background: rgba(14,110,97,0.06);
+    border-radius: 6px; padding: 4px 8px; text-align: center; margin-bottom: 8px;
+}
+/* بطاقتا معلومات "أعلى إدارة..." بصفحة "بيانات الإدارات" - أيقونة على اليمين جنب النص
+   (بدل فوق النص بمنتصف مربّع)، واسم الإدارة كاملاً بلا اقتصاص، بحجم أكبر وأوضح */
+.ai-insight-wrap { display: flex; flex-direction: column; gap: 12px; height: 100%; }
+.ai-insight-card {
+    flex: 1 1 0; display: flex; align-items: center; gap: 14px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+    box-shadow: var(--shadow-xs); padding: 16px;
+}
+.ai-insight-icon {
+    width: 46px; height: 46px; border-radius: 12px; background: rgba(14,110,97,0.08); color: var(--brand-dark);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 20px;
+}
+.ai-insight-text { min-width: 0; }
+.ai-insight-label { font-size: .74rem; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+.ai-insight-dept { font-weight: 800; color: var(--text); font-size: .95rem; line-height: 1.35; white-space: normal; }
+.ai-insight-metric { font-size: .88rem; color: var(--brand-dark); font-weight: 800; margin-top: 4px; }
+
 .echart-box { width: 100%; height: 240px; }
 .tc-quarterly-card .echart-box { height: 260px; }
 .tc-small-card .echart-box { height: 200px; }
 .ft-items-card .echart-box { height: 340px; }
 
+/* الصف الأول بصفحة "الطرح": الإدارة العامة (قابل للضغط) + الإدارة الفرعية - نفس الارتفاع
+   بالضبط لكليهما فلا داعي لإلغاء align-items:stretch الافتراضي هذه المرة */
+.tarh-combo-card .echart-box { height: 400px; }
+@media (max-width: 700px) { .tarh-combo-card .echart-box { height: 340px; } }
+
+/* الصف الثاني: عدد الفرص حسب السنة (يسار) + تفاصيل حالات فتح المظاريف للسنة المختارة (يمين) -
+   داخل نفس الكارد، بلا تقسيم شبكة صفحة كامل حتى تبقى الحدود بصريًا موحّدة بينهما */
+.tarh-yearstatus-body { display: grid; grid-template-columns: 1fr 280px; gap: 18px; align-items: stretch; }
+@media (max-width: 800px) { .tarh-yearstatus-body { grid-template-columns: 1fr; } }
+.tarh-yearstatus-card .echart-box { height: 360px; }
+.tarh-yearstatus-detail {
+    border-right: 1px solid var(--border); padding-right: 18px; display: flex; flex-direction: column;
+}
+@media (max-width: 800px) { .tarh-yearstatus-detail { border-right: none; border-top: 1px solid var(--border); padding-right: 0; padding-top: 14px; } }
+.tarh-yearstatus-detail-title { font-size: .8rem; font-weight: 800; color: var(--brand-dark); margin-bottom: 10px; }
+.tarh-yearstatus-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .82rem;
+}
+.tarh-yearstatus-row:last-child { border-bottom: none; }
+.tarh-yearstatus-row-label { color: var(--text); font-weight: 600; }
+.tarh-yearstatus-row-value { font-weight: 800; color: var(--brand-dark); white-space: nowrap; }
+.tarh-yearstatus-row-pct { font-weight: 600; color: var(--muted); font-size: .76rem; }
+
+/* شبكة صف مشتركة (عمود عريض + عمود جانبي 390px) - تُستخدَم لصف "عدد الفرص حسب السنة" وصف
+   "نسبة الطرح والإبرام + حالة مدة الفرص" معًا؛ العنصر الأول بترتيب DOM يأخذ العمود العريض */
+.tarh-row2-grid { display: grid; grid-template-columns: 1fr 390px; gap: 12px; align-items: stretch; }
+@media (max-width: 900px) { .tarh-row2-grid { grid-template-columns: 1fr; } }
+.tarh-row2-grid .chart-card { display: flex; flex-direction: column; }
+.tarh-row2-grid .echart-box { flex: 1 1 auto; }
+.tarh-line-card .echart-box { height: 280px; }
+.tarh-duration-card .echart-box { height: 230px; }
+@media (max-width: 900px) {
+    .tarh-line-card .echart-box { height: 260px; }
+    .tarh-duration-card .echart-box { height: 220px; }
+}
+
 /* شبكة كروت صفحة "الطرح" - عدد كروت متغيّر (فرص + أنواع عقود)، تلتف تلقائيًا بدل عمود ثابت */
 .tarh-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 22px; }
+
+/* جدول تصدير صفحة "الطرح" - مخفي على الشاشة (يُبنى للطباعة/PDF فقط عبر زر "طباعة PDF") */
+.tarh-export-table-wrap { display: none; }
+
+/* ===== "حالة مدة الفرص" - شريط مقسّم أخضر/أحمر + نسب + متوسط الأيام ===== */
+.tarh-duration-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.tarh-duration-title { font-weight: 800; font-size: 1.02rem; color: var(--brand-dark); display: flex; align-items: center; gap: 8px; }
+.tarh-duration-bar { display: flex; width: 100%; height: 40px; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-xs); }
+.tarh-duration-seg { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: .85rem; white-space: nowrap; transition: flex-basis .3s var(--ease); }
+.tarh-duration-seg.within { background: linear-gradient(90deg, var(--brand-dark), #3F8F87); }
+.tarh-duration-seg.over { background: linear-gradient(90deg, #D6534A, #B9463D); }
+
+.tarh-duration-legend { display: flex; gap: 22px; margin-top: 12px; flex-wrap: wrap; }
+.tarh-duration-legend-item { display: flex; align-items: center; gap: 8px; font-size: .85rem; font-weight: 700; color: var(--text); }
+.tarh-duration-dot { width: 12px; height: 12px; border-radius: 4px; flex: none; }
+.tarh-duration-dot.within { background: var(--brand-dark); }
+.tarh-duration-dot.over { background: #D6534A; }
+
+.tarh-duration-avg { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); font-size: .9rem; color: var(--muted); font-weight: 700; }
+.tarh-duration-avg strong { color: var(--brand-dark); font-size: 1.1rem; }
+
+/* ===== نافذة "تتبع الفرصة" (Modal داخل الصفحة) ===== */
+.tarh-modal-overlay {
+    position: fixed; inset: 0; background: rgba(10, 30, 26, 0.55);
+    display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px;
+}
+.tarh-modal {
+    background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+    width: 100%; max-width: 620px; max-height: 85vh; display: flex; flex-direction: column;
+}
+.tarh-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--surface-alt);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.tarh-modal-title { font-weight: 800; font-size: 1.05rem; color: var(--brand-dark); display: flex; align-items: center; gap: 8px; }
+.tarh-modal-close {
+    background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1.1rem;
+    width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+}
+.tarh-modal-close:hover { background: var(--border); color: var(--text); }
+.tarh-modal-body { padding: 18px 20px; border-radius: 0 0 var(--radius-lg) var(--radius-lg); overflow-y: auto; }
+
+/* زر "رجوع لقائمة الفرص" أعلى نتيجة التتبع - يرجع لنفس القائمة المنسدلة الملوّنة بدل إغلاق النافذة */
+.tarh-timeline-back {
+    display: flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer;
+    color: var(--brand-dark); font-weight: 700; font-size: .85rem; padding: 4px 0; font-family: "Cairo", sans-serif;
+}
+.tarh-timeline-back:hover { text-decoration: underline; }
+
+/* رحلة الفرصة: Timeline أفقي بثلاث مراحل */
+.tarh-timeline { display: flex; align-items: flex-start; justify-content: space-between; margin: 22px 0 6px; }
+.tarh-timeline-step { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; }
+.tarh-timeline-step .dot { width: 34px; height: 34px; border-radius: 50%; background: var(--brand-dark); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1rem; z-index: 2; }
+.tarh-timeline-step.pending .dot { background: var(--border-strong); color: var(--muted); }
+.tarh-timeline-step .label { font-weight: 800; font-size: .85rem; color: var(--brand-dark); margin-top: 8px; }
+.tarh-timeline-step .date { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+.tarh-timeline-connector { flex: none; width: 60px; height: 2px; background: var(--border-strong); margin-top: 17px; position: relative; }
+.tarh-timeline-connector .days { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: .72rem; font-weight: 700; color: var(--muted); white-space: nowrap; }
+
+.tarh-timeline-summary { margin-top: 18px; padding: 14px; border-radius: var(--radius-md); background: var(--surface-alt); text-align: center; }
+.tarh-timeline-summary .total { font-size: 1.3rem; font-weight: 800; color: var(--brand-dark); }
+.tarh-timeline-badge { display: inline-block; margin-top: 6px; padding: 4px 14px; border-radius: 999px; font-weight: 800; font-size: .82rem; }
+.tarh-timeline-badge.within { background: rgba(14,110,97,0.14); color: var(--brand-dark); }
+.tarh-timeline-badge.over { background: rgba(214,83,74,0.14); color: #A8362E; }
+
+@media (max-width: 600px) {
+    .tarh-timeline { flex-direction: column; gap: 16px; }
+    .tarh-timeline-connector { display: none; }
+}
+
+/* قائمة "تتبع الفرصة" - كل فرصة نصها (رقمها واسمها) نفسه ملوّن حسب حالة مدتها (أخضر=ضمن 40
+   يوم، أحمر=تجاوزت) بلا نقطة لون منفصلة؛ قائمة ثابتة ضمن تدفّق النافذة (مو منسدلة عائمة) -
+   تُعرض دائمًا مفلترة على لون واحد فقط (تُفتح النافذة من الضغط على جزء لوني بقوس "حالة مدة
+   الفرص") فلا حاجة لخانة بحث نصي إطلاقًا */
+.tarh-opp-list { border: 1px solid var(--border); border-radius: var(--radius-md); max-height: 60vh; overflow-y: auto; }
+.tarh-opp-item {
+    display: flex; align-items: center; padding: 13px 16px; cursor: pointer;
+    font-size: .95rem; border-bottom: 1px solid var(--border);
+}
+.tarh-opp-item:last-child { border-bottom: none; }
+.tarh-opp-item:hover { background: var(--surface-alt); }
+.tarh-opp-item-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tarh-opp-item-number { font-weight: 800; }
+.tarh-opp-item.within .tarh-opp-item-text { color: #5F9E1F; }
+.tarh-opp-item.over .tarh-opp-item-text { color: var(--danger); }
+.tarh-opp-item.unknown .tarh-opp-item-text { color: var(--muted-2); }
+.tarh-opp-empty { padding: 14px; text-align: center; color: var(--muted); font-size: .85rem; }
 
 /* وضع "عرض فقط" (النسخة المنشورة للفريق) - إخفاء كل أزرار/نماذج رفع الملفات، مع بقاء
    نقاط الحماية الفعلية على مستوى السيرفر (كل نقطة POST محمية بفحص AppMode.ReadOnly) */
@@ -1369,12 +1518,14 @@ body { min-height: 100vh; display: flex; flex-direction: column; }
 
     .top-bar, .site-footer, .nav-bar-row,
     .contract-mode-tabs, .contract-search-card, .contract-actions,
-    .no-data-box, .nav-overlay { display: none !important; }
+    .no-data-box, .nav-overlay, .sidebar-nav,
+    .print-hide { display: none !important; }
 
     body, .main-authenticated { background: #fff !important; padding: 0 !important; margin: 0 !important; }
     .page-title, .page-subtitle { display: none !important; }
 
     .contract-print-header { display: block !important; margin-bottom: 14px; }
+    .tarh-export-table-wrap { display: block !important; }
     .contract-print-logo-row { font-family: "Cairo", sans-serif; font-weight: 800; font-size: 1.1rem; color: #0E6E61; margin-bottom: 4px; }
     .contract-print-title { font-weight: 700; font-size: .95rem; color: #16332F; }
     .contract-print-date { font-size: .8rem; color: #6B857F; margin-top: 2px; }

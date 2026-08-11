@@ -249,6 +249,7 @@ using (var scope = app.Services.CreateScope())
             ContractYear INTEGER NULL,
             Quarter INTEGER NULL,
             EnvelopeOpeningDate TEXT NULL,
+            AwardDate TEXT NULL,
             AnnualRent REAL NULL,
             ContractValue REAL NULL,
             GeneralDepartment TEXT NULL,
@@ -297,6 +298,7 @@ using (var scope = app.Services.CreateScope())
     AddColumnIfMissing("ContractRecords", "SubPortfolio", "TEXT NULL");
     AddColumnIfMissing("ContractRecords", "Quarter", "INTEGER NULL");
     AddColumnIfMissing("ContractRecords", "EnvelopeOpeningDate", "TEXT NULL");
+    AddColumnIfMissing("ContractRecords", "AwardDate", "TEXT NULL");
     AddColumnIfMissing("ClaimRecords", "ItemCategory", "TEXT NULL");
     AddColumnIfMissing("DebtRecords", "ItemCategory", "TEXT NULL");
     AddColumnIfMissing("ClaimRecords", "ContractNumber", "TEXT NULL");
