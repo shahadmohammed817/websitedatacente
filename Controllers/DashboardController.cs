@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using ExcelDashboard.Data;
 using ExcelDashboard.Helpers;
 using ExcelDashboard.Models;
@@ -19,6 +20,7 @@ namespace ExcelDashboard.Controllers
         private readonly IMonthlyTargetImportService _monthlyTargetImport;
         private readonly IFinanceTargetImportService _financeTargetImport;
         private readonly IAmanahInvestmentDashboardService _amanahInvestment;
+        private readonly IRevenueBaselineImportService _revenueBaselineImport;
 
         private const int CurrentUserId = 0;
 
@@ -28,7 +30,8 @@ namespace ExcelDashboard.Controllers
             IAnalyticsService analytics,
             IMonthlyTargetImportService monthlyTargetImport,
             IFinanceTargetImportService financeTargetImport,
-            IAmanahInvestmentDashboardService amanahInvestment)
+            IAmanahInvestmentDashboardService amanahInvestment,
+            IRevenueBaselineImportService revenueBaselineImport)
         {
             _db = db;
             _permissions = permissions;
@@ -36,6 +39,7 @@ namespace ExcelDashboard.Controllers
             _monthlyTargetImport = monthlyTargetImport;
             _financeTargetImport = financeTargetImport;
             _amanahInvestment = amanahInvestment;
+            _revenueBaselineImport = revenueBaselineImport;
         }
 
         /// <summary>
@@ -45,21 +49,92 @@ namespace ExcelDashboard.Controllers
         /// لتفعيل الترابط بين الرسوم (Cross Filtering).
         /// </summary>
         [HttpGet("Dashboard/AmanahInvestment/Data")]
-        public async Task<IActionResult> AmanahInvestmentData(string? quarter, string? contract, string? sectionIds, string? deptGeneral, string? deptSub)
+        public async Task<IActionResult> AmanahInvestmentData(string? quarter, string? contract, string? sectionIds, string? deptGeneral, string? deptSub, string? investmentType)
         {
-            List<int>? ids = null;
-            if (!string.IsNullOrWhiteSpace(sectionIds))
+            var ids = ParseSectionIds(sectionIds);
+            var data = await _amanahInvestment.GetDataAsync(quarter, contract, ids, deptGeneral, deptSub, investmentType);
+            return Json(data);
+        }
+
+        private static List<int>? ParseSectionIds(string? sectionIds)
+        {
+            if (string.IsNullOrWhiteSpace(sectionIds)) return null;
+            return sectionIds
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(x => int.TryParse(x, out var n) ? n : (int?)null)
+                .Where(n => n.HasValue)
+                .Select(n => n!.Value)
+                .ToList();
+        }
+
+        /// <summary>
+        /// صفوف تصدير صفحة "الإدارات العامة" بصيغة JSON (تُستخدَم لتعبئة جدول الطباعة المخفي قبل
+        /// استدعاء window.print) - نفس تصفية AmanahInvestmentData بالضبط
+        /// </summary>
+        [HttpGet("Dashboard/AmanahInvestment/ExportData")]
+        public async Task<IActionResult> AmanahInvestmentExportData(string? quarter, string? contract, string? sectionIds, string? deptGeneral, string? deptSub, string? investmentType)
+        {
+            var ids = ParseSectionIds(sectionIds);
+            var rows = await _amanahInvestment.GetExportRowsAsync(quarter, contract, ids, deptGeneral, deptSub, investmentType);
+            return Json(rows);
+        }
+
+        /// <summary>تصدير بيانات صفحة "الإدارات العامة" كملف Excel (.xlsx) - نفس تصفية AmanahInvestmentData بالضبط</summary>
+        [HttpGet("Dashboard/AmanahInvestment/ExportExcel")]
+        public async Task<IActionResult> AmanahInvestmentExportExcel(string? quarter, string? contract, string? sectionIds, string? deptGeneral, string? deptSub, string? investmentType)
+        {
+            var ids = ParseSectionIds(sectionIds);
+            var rows = await _amanahInvestment.GetExportRowsAsync(quarter, contract, ids, deptGeneral, deptSub, investmentType);
+
+            using var workbook = new XLWorkbook();
+            var sheet = workbook.Worksheets.Add("الإدارات العامة");
+            sheet.RightToLeft = true;
+
+            string[] headers = { "رقم العقد", "اسم المستثمر", "تاريخ الإنشاء", "تاريخ الدفع", "رقم الدفعة", "القيمة", "المحفظة الفرعية" };
+            for (int i = 0; i < headers.Length; i++)
             {
-                ids = sectionIds
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Select(x => int.TryParse(x, out var n) ? n : (int?)null)
-                    .Where(n => n.HasValue)
-                    .Select(n => n!.Value)
-                    .ToList();
+                var cell = sheet.Cell(1, i + 1);
+                cell.Value = headers[i];
+                cell.Style.Font.Bold = true;
+                cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#0E6E61");
+                cell.Style.Font.FontColor = XLColor.White;
             }
 
-            var data = await _amanahInvestment.GetDataAsync(quarter, contract, ids, deptGeneral, deptSub);
-            return Json(data);
+            int row = 2;
+            foreach (var r in rows)
+            {
+                sheet.Cell(row, 1).Value = r.ContractNumber ?? "";
+                sheet.Cell(row, 2).Value = r.InvestorName ?? "";
+                if (r.CreatedDate.HasValue)
+                {
+                    sheet.Cell(row, 3).Value = r.CreatedDate.Value;
+                    sheet.Cell(row, 3).Style.DateFormat.Format = "yyyy-MM-dd";
+                }
+                if (r.RecordDate.HasValue)
+                {
+                    sheet.Cell(row, 4).Value = r.RecordDate.Value;
+                    sheet.Cell(row, 4).Style.DateFormat.Format = "yyyy-MM-dd";
+                }
+                sheet.Cell(row, 5).Value = r.PaymentNumber ?? "";
+                if (r.TotalValue.HasValue)
+                {
+                    sheet.Cell(row, 6).Value = r.TotalValue.Value;
+                    sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+                }
+                sheet.Cell(row, 7).Value = r.SubPortfolio ?? "";
+                row++;
+            }
+
+            sheet.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            stream.Position = 0;
+
+            return File(
+                stream.ToArray(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "الإدارات_العامة.xlsx");
         }
 
         /// <summary>
@@ -166,7 +241,7 @@ namespace ExcelDashboard.Controllers
                 DeptGroups = deptGroups
             };
 
-            // فلتر "الإدارة العامة/الإدارة الفرعية" لبند الاستثمار: يُبنى مباشرة من عمودي
+            // فلتر "الإدارة العامة/الإدارة الفرعية" لصفحة "الإدارات العامة": يُبنى مباشرة من عمودي
             // DeptGeneral/DeptSub الخام على DashboardRecord (نفس مصدر بيانات AmanahInvestmentDashboardService)
             // بدل شجرة البنود، لأن البنود الفرعية الفعلية المستوردة (تأجير مباني تجارية...) لا
             // تحمل شجرة إدارات خاصة بها
@@ -174,7 +249,7 @@ namespace ExcelDashboard.Controllers
             {
                 var amanahSectionIds = scopeSections.Select(s => s.Id).ToList();
                 var deptPairs = await _db.DashboardRecords
-                    .Where(r => r.Classification == "استثمار"
+                    .Where(r => (r.Classification == "استثمار" || r.Classification == "تأجير مؤقت")
                         && amanahSectionIds.Contains(r.SectionId)
                         && r.DeptGeneral != null && r.DeptGeneral.Contains("الإدارة"))
                     .Select(r => new { r.DeptGeneral, r.DeptSub })
@@ -220,16 +295,53 @@ namespace ExcelDashboard.Controllers
             return View(vm);
         }
 
+        [HttpGet("Dashboard/Debug/DebtStatuses")]
+        public async Task<IActionResult> DebugDebtStatuses([FromServices] AppDbContext db)
+        {
+            var years = await db.DebtInvoiceRecords.Where(r => r.CreatedDate != null).Select(r => r.CreatedDate!.Value.Year).ToListAsync();
+            var yearCounts = years.GroupBy(y => y).Select(g => new { year = g.Key, count = g.Count() }).OrderBy(x => x.year).ToList();
+            return Json(new { yearCounts });
+        }
+
+
+        /// <summary>
+        /// رفع ملف "المحصل الفعلي لسنة الأساس 2025" (بطاقتا "محصل 2025"/"نسبة نمو الإيرادات"
+        /// أعلى رسم "أداء الإيرادات" بالرئيسية). يستبدل بيانات سنة الأساس القديمة بالكامل.
+        /// </summary>
+        [HttpPost("Dashboard/UploadRevenueBaseline")]
+        [RequestSizeLimit(100_000_000)]
+        public async Task<IActionResult> UploadRevenueBaseline(IFormFile revenueBaselineFile)
+        {
+            if (AppMode.ReadOnly)
+                return Json(new { success = false, message = "الموقع بوضع العرض فقط حاليًا - الرفع غير متاح." });
+
+            if (revenueBaselineFile == null || revenueBaselineFile.Length == 0)
+                return Json(new { success = false, message = "يرجى اختيار ملف صالح." });
+
+            if (!revenueBaselineFile.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+                return Json(new { success = false, message = "يرجى رفع ملف بصيغة .xlsx فقط." });
+
+            using var stream = revenueBaselineFile.OpenReadStream();
+            var result = await _revenueBaselineImport.ImportAsync(stream);
+
+            return Json(new
+            {
+                success = result.Success,
+                message = result.Message,
+                classificationsImported = result.ClassificationsImported
+            });
+        }
+
         /// <summary>
         /// نقطة نهاية JSON تُرجع لوحة بيانات كاملة لجهة واحدة (مثل: بلدية الحناكية)
         /// مثال: Dashboard/Entity/Data?name=بلدية الحناكية
         /// </summary>
         [HttpGet("Dashboard/Entity/Data")]
-        public async Task<IActionResult> EntityData(string name, string? quarter, string? contract)
+        public async Task<IActionResult> EntityData(string name, string? quarter, string? contract, int? month)
         {
             if (string.IsNullOrWhiteSpace(name)) return NotFound();
 
-            var data = await _analytics.GetEntityDataAsync(name.Trim(), quarter, contract);
+            var data = await _analytics.GetEntityDataAsync(name.Trim(), quarter, contract, month);
             return Json(data);
         }
 
@@ -238,7 +350,7 @@ namespace ExcelDashboard.Controllers
         /// مثال: Dashboard/Sections/Data?ids=301,401,501
         /// </summary>
         [HttpGet("Dashboard/Sections/Data")]
-        public async Task<IActionResult> SectionsData(string ids, string? quarter, string? contract)
+        public async Task<IActionResult> SectionsData(string ids, string? quarter, string? contract, int? month)
         {
             var idList = (ids ?? string.Empty)
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -250,7 +362,7 @@ namespace ExcelDashboard.Controllers
 
             if (!idList.Any()) return NotFound();
 
-            var data = await _analytics.GetSectionsDataAsync(idList, quarter, contract);
+            var data = await _analytics.GetSectionsDataAsync(idList, quarter, contract, month);
             return Json(data);
         }
 
@@ -258,9 +370,9 @@ namespace ExcelDashboard.Controllers
         /// نقطة نهاية JSON تُستخدم من JavaScript لجلب بيانات الرسوم البيانية لبند معين
         /// </summary>
         [HttpGet("Dashboard/{sectionId:int}/Data")]
-        public async Task<IActionResult> SectionData(int sectionId, string? quarter, string? contract)
+        public async Task<IActionResult> SectionData(int sectionId, string? quarter, string? contract, int? month)
         {
-            var data = await _analytics.GetSectionDataAsync(sectionId, quarter: quarter, contractNumber: contract);
+            var data = await _analytics.GetSectionDataAsync(sectionId, quarter: quarter, contractNumber: contract, month: month);
             return Json(data);
         }
 
@@ -268,12 +380,12 @@ namespace ExcelDashboard.Controllers
         /// نقطة نهاية JSON تُرجع لوحة بيانات مجمّعة لكل بنود نطاق كامل (الأمانة أو البلدية)
         /// </summary>
         [HttpGet("Dashboard/Scope/{scope}/Data")]
-        public async Task<IActionResult> ScopeData(string scope, string? quarter, string? contract)
+        public async Task<IActionResult> ScopeData(string scope, string? quarter, string? contract, int? month)
         {
             if (!Enum.TryParse<ScopeType>(scope, true, out var scopeType))
                 return NotFound();
 
-            var data = await _analytics.GetScopeDataAsync(scopeType, quarter, contract);
+            var data = await _analytics.GetScopeDataAsync(scopeType, quarter, contract, month);
             return Json(data);
         }
 
@@ -281,10 +393,10 @@ namespace ExcelDashboard.Controllers
         /// نقطة نهاية JSON تُرجع لوحة بيانات عامة مجمّعة لكل النطاقات (الأمانة + البلدية معاً)
         /// </summary>
         [HttpGet("Dashboard/Overview/Data")]
-        public async Task<IActionResult> OverviewData(string? quarter, string? contract)
+        public async Task<IActionResult> OverviewData(string? quarter, string? contract, int? month)
         {
             var scopes = new List<ScopeType> { ScopeType.Amanah, ScopeType.Baladiyah };
-            var data = await _analytics.GetOverviewDataAsync(scopes, quarter, contract);
+            var data = await _analytics.GetOverviewDataAsync(scopes, quarter, contract, month);
             return Json(data);
         }
 
@@ -302,13 +414,6 @@ namespace ExcelDashboard.Controllers
         /// <summary>صفحة مستهدفات وزارة البلديات والإسكان وحدها (بطاقة مستهدف + رسمان + رفع ملف المستهدف الشهري)</summary>
         [HttpGet("Dashboard/TargetsComparison/Baladiyah")]
         public IActionResult TargetsComparisonBaladiyah()
-        {
-            return View();
-        }
-
-        /// <summary>صفحة مستهدفات وزارة المالية وحدها (بطاقة مستهدف + رسمان)</summary>
-        [HttpGet("Dashboard/TargetsComparison/Finance")]
-        public IActionResult TargetsComparisonFinance()
         {
             return View();
         }
@@ -353,43 +458,5 @@ namespace ExcelDashboard.Controllers
             });
         }
 
-        /// <summary>
-        /// نقطة نهاية JSON تُرجع بيانات صفحة "مستهدفات وزارة المالية" (محصّل/مستهدف/نسبة تحقيق
-        /// لكل من الأمانة والبلديات مجتمعة، + تفصيل حسب البند الرئيسي لكل نطاق)
-        /// </summary>
-        [HttpGet("Dashboard/TargetsComparison/FinanceData")]
-        public async Task<IActionResult> TargetsComparisonFinanceData()
-        {
-            var data = await _analytics.GetFinanceTargetsPageDataAsync();
-            return Json(data);
-        }
-
-        /// <summary>
-        /// رفع ملف "مستهدف المالية" (زر مخصص بصفحة مستهدفات وزارة المالية). يستبدل كل مستهدفات
-        /// وزارة المالية القديمة بالكامل بمحتوى الملف الجديد.
-        /// </summary>
-        [HttpPost("Dashboard/TargetsComparison/UploadFinanceTarget")]
-        [RequestSizeLimit(100_000_000)]
-        public async Task<IActionResult> UploadFinanceTarget(IFormFile financeTargetFile)
-        {
-            if (AppMode.ReadOnly)
-                return Json(new { success = false, message = "الموقع بوضع العرض فقط حاليًا - الرفع غير متاح." });
-
-            if (financeTargetFile == null || financeTargetFile.Length == 0)
-                return Json(new { success = false, message = "يرجى اختيار ملف صالح." });
-
-            if (!financeTargetFile.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
-                return Json(new { success = false, message = "يرجى رفع ملف بصيغة .xlsx فقط." });
-
-            using var stream = financeTargetFile.OpenReadStream();
-            var result = await _financeTargetImport.ImportAsync(stream);
-
-            return Json(new
-            {
-                success = result.Success,
-                message = result.Message,
-                rowsImported = result.RowsImported
-            });
-        }
     }
 }

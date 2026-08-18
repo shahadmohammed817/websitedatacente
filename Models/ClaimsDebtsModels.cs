@@ -4,80 +4,215 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ExcelDashboard.Models
 {
     /// <summary>
-    /// سجل "مطالبة" واحد - مستورد من ملف Excel (صفحتا "المطالبات والمديونيات" و"متابعة الأداء").
-    /// إعادة رفع الملف تستبدل كل المطالبات القديمة بالكامل (بلا تراكم)، بنفس أسلوب
-    /// DashboardRecord في بقية النظام.
+    /// فاتورة مديونية واحدة - مستوردة من ملف "جميع الفواتير" ("لوحة المديونيات"). حقل صريح لكل
+    /// عمود بالملف مباشرة (لا RawJson - كل عمود له مقابل). إعادة رفع الملف تستبدل كل الفواتير
+    /// القديمة بالكامل (بلا تراكم).
     /// </summary>
-    public class ClaimRecord
+    public class DebtInvoiceRecord
     {
         public int Id { get; set; }
 
-        [MaxLength(100)]
-        public string? ClaimNumber { get; set; } // رقم المطالبة
-
-        // رقم العقد المرتبط بالمطالبة - يربط المطالبة بمديونيّتها (نفس رقم العقد) لبناء رسوم
-        // "حالة المديونيات حسب البند" و"عدد المطالبات لكل مديونية"
-        [MaxLength(100)]
-        public string? ContractNumber { get; set; }
+        [MaxLength(50)]
+        public string? Scope { get; set; } // الأمانة/بلدى
 
         [MaxLength(150)]
-        public string? Department { get; set; } // الإدارة/الجهة المسؤولة
+        public string? Entity { get; set; } // الجهة
 
         [MaxLength(150)]
-        public string? Status { get; set; } // حالة المطالبة كما هي بالملف (منجزة، قيد المعالجة، متأخرة...)
+        public string? Classification { get; set; } // تصنيف البند
 
         [MaxLength(250)]
-        public string? ItemCategory { get; set; } // البند/تصنيف البند المرتبط بالمطالبة (إن وُجد)
+        public string? Category { get; set; } // البند
 
-        public decimal? Value { get; set; } // قيمة المطالبة
+        [MaxLength(50)]
+        public string? ItemNumber { get; set; } // رقم البند
 
-        public DateTime? ClaimDate { get; set; } // تاريخ المطالبة/الإنشاء - أساس حساب مدة المعالجة والتأخر
+        [MaxLength(50)]
+        public string? PaymentStatus { get; set; } // حالة السداد
 
-        public DateTime? ActionDate { get; set; } // تاريخ اتخاذ أول إجراء (إن وُجد عمود صريح بالملف)
+        [MaxLength(100)]
+        public string? ItemType { get; set; } // نوع البند
 
-        public DateTime? CompletionDate { get; set; } // تاريخ الإنجاز/الإغلاق - null يعني أنها لا تزال مفتوحة
+        public decimal? Value { get; set; } // القيمة
 
-        [Column(TypeName = "TEXT")]
-        public string? RawJson { get; set; }
+        public DateTime? CreatedDate { get; set; } // تاريخ الإنشاء
+        public DateTime? PaymentDate { get; set; } // تاريخ الدفع
+        public DateTime? SettlementDate { get; set; } // تاريخ التسوية
+        public DateTime? CancellationDate { get; set; } // تاريخ الإلغاء
+
+        [MaxLength(250)]
+        public string? CustomerName { get; set; } // إسم العميل
+
+        [MaxLength(100)]
+        public string? InvestorNumber { get; set; } // رقم المستثمر
+
+        [MaxLength(250)]
+        public string? InvestorName { get; set; } // إسم المستثمر
+
+        [MaxLength(100)]
+        public string? ContractNumber { get; set; } // رقم العقد - مفتاح الربط مع المطالبات
+
+        [MaxLength(100)]
+        public string? ContractIdRaw { get; set; } // CONTRACT_ID
+
+        public DateTime? ContractDate { get; set; } // تاريخ العقد
+
+        [MaxLength(100)]
+        public string? InvoiceNumber { get; set; } // رقم الفاتوره - مفتاح الربط مع المطالبات
+
+        [MaxLength(500)]
+        public string? InvoiceDescription { get; set; } // وصف الفاتوره
+
+        [MaxLength(100)]
+        public string? RulingNumber { get; set; } // رقم الحكم
+
+        [MaxLength(100)]
+        public string? ExecutionNumber { get; set; } // رقم التنفيذ
+
+        [MaxLength(100)]
+        public string? PaymentEntryNumber { get; set; } // رقم إيفاء
+
+        [MaxLength(100)]
+        public string? BatchStatusAr { get; set; } // BATCH_STATUS_AR
+
+        [MaxLength(100)]
+        public string? BatchStatusEn { get; set; } // BATCH_STATUS_EN
+
+        [MaxLength(50)]
+        public string? BatchNumber { get; set; } // رقم الدفعة
+
+        // عدد الأيام المنقضية من اصدار الفاتورة - أساس رسم "الفواتير المتجاوزة 60 يوم"
+        public int? DaysElapsed { get; set; }
+
+        [MaxLength(100)]
+        public string? ContractType { get; set; } // نوع العقد
+
+        [MaxLength(100)]
+        public string? ContractStatus { get; set; } // حالة العقد
+
+        [MaxLength(20)]
+        public string? IsLegalExecution { get; set; } // هل الفاتورة ضمن التنفيذ القضائي (نعم/لا)
+
+        [MaxLength(250)]
+        public string? LegalExecutionClaimStatus { get; set; } // حالة المطالبة في التنفيذ القضائي
+
+        [MaxLength(500)]
+        public string? StatementUpdate { get; set; } // تحديث الإفادة (الفواتير)
+
+        [MaxLength(250)]
+        public string? PreviousPortfolio { get; set; } // المحفظة السابقة
+
+        [MaxLength(250)]
+        public string? GeneralDepartment { get; set; } // الإدارة العامة
+
+        [MaxLength(250)]
+        public string? Portfolio { get; set; } // المحفظة
 
         public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
     }
 
     /// <summary>
-    /// سجل "مديونية" واحد - مستورد من ملف Excel. إعادة الرفع تستبدل كل المديونيات القديمة بالكامل.
+    /// مطالبة تنفيذية واحدة - مستوردة من ملف "تقرير التنفيذ القضائي" ("لوحة المطالبات
+    /// التنفيذية"). حقل صريح لكل عمود بالملف مباشرة. إعادة رفع الملف تستبدل كل المطالبات
+    /// القديمة بالكامل (بلا تراكم).
     /// </summary>
-    public class DebtRecord
+    public class ClaimExecutionRecord
     {
         public int Id { get; set; }
 
-        [MaxLength(100)]
-        public string? DebtNumber { get; set; } // رقم المديونية
-
-        // رقم العقد المرتبط بالمديونية - نفس مفتاح الربط المستخدم بـ ClaimRecord.ContractNumber
-        [MaxLength(100)]
-        public string? ContractNumber { get; set; }
+        [MaxLength(150)]
+        public string? Amanah { get; set; } // الأمانة
 
         [MaxLength(150)]
-        public string? Department { get; set; } // الإدارة/الجهة المسؤولة
-
-        [MaxLength(150)]
-        public string? Status { get; set; } // حالة السداد كما هي بالملف (محصّلة، غير محصّلة...)
+        public string? Baladiyah { get; set; } // البلدية
 
         [MaxLength(250)]
-        public string? ItemCategory { get; set; } // البند/تصنيف البند المرتبط بالمديونية (إن وُجد)
+        public string? InvestorName { get; set; } // أسم المستثمر
 
-        public decimal? Value { get; set; } // إجمالي قيمة المديونية
+        [MaxLength(100)]
+        public string? OpportunityNumber { get; set; } // رقم الفرصة - حقل بحث مباشر
 
-        public decimal? CollectedValue { get; set; } // الجزء المحصّل من المديونية (إن وُجد صراحة بالملف)
+        [MaxLength(500)]
+        public string? OpportunityDescription { get; set; } // وصف الفرصة
 
-        public DateTime? DebtDate { get; set; } // تاريخ نشوء المديونية
+        [MaxLength(100)]
+        public string? OpportunityType { get; set; } // نوع الفرصة
 
-        public DateTime? DueDate { get; set; } // تاريخ الاستحقاق
+        [MaxLength(100)]
+        public string? ContractType { get; set; } // نوع العقد
 
-        public DateTime? CollectionDate { get; set; } // تاريخ التحصيل الفعلي (إن حُصّلت)
+        [MaxLength(150)]
+        public string? ContractStatus { get; set; } // حالة العقد
 
-        [Column(TypeName = "TEXT")]
-        public string? RawJson { get; set; }
+        [MaxLength(100)]
+        public string? ContractNumber { get; set; } // رقم العقد - مفتاح الربط مع المديونيات، حقل بحث مباشر
+
+        [MaxLength(150)]
+        public string? ContractSource { get; set; } // مصدر العقد
+
+        [MaxLength(50)]
+        public string? PaymentNumber { get; set; } // رقم الدفعه
+
+        [MaxLength(50)]
+        public string? PaymentStatus { get; set; } // حالة الدفعه
+
+        public DateTime? PaymentDueDate { get; set; } // تاريخ إستحقاق الدفعه
+
+        public decimal? PaymentValueWithTax { get; set; } // قيمة الدفعة شامله قيمة الضريبة المضافة
+        public decimal? PaymentValueWithoutTax { get; set; } // قيمة الدفعة بدون الضريبة
+        public decimal? TaxValue { get; set; } // قيمة الضريبة
+
+        [MaxLength(100)]
+        public string? InvoiceNumber { get; set; } // رقم الفاتورة - مفتاح الربط مع المديونيات، حقل بحث مباشر
+
+        [MaxLength(500)]
+        public string? ClaimStatusFull { get; set; } // حالة المطالبة
+
+        [MaxLength(250)]
+        public string? ClaimStatusShort { get; set; } // حالة المطالبة مختصرة - أساس رسم/كروت الحالة
+
+        [MaxLength(500)]
+        public string? CancellationReason { get; set; } // سبب الإلغاء
+
+        [MaxLength(1000)]
+        public string? CancellationNotes { get; set; } // ملاحظات الإلغاء
+
+        public DateTime? ReturnedFromJudiciaryDate { get; set; } // تاريخ الإرجاع من قضايا
+
+        // تاريخ الإرسال الى تنفيذ - الأساس الزمني لرسم "تطور المطالبات عبر الزمن"
+        public DateTime? SentToExecutionDate { get; set; }
+
+        public DateTime? CancellationDate { get; set; } // تاريخ الإلغاء
+
+        [MaxLength(100)]
+        public string? RequestNumber { get; set; } // رقم الطلب
+
+        [MaxLength(100)]
+        public string? FirstNoticeNumber { get; set; } // رقم الإشعار الأول
+        public DateTime? FirstNoticeDate { get; set; } // تاريخ الإشعار الأول
+
+        [MaxLength(100)]
+        public string? SecondNoticeNumber { get; set; } // رقم الإشعار الثاني
+        public DateTime? SecondNoticeDate { get; set; } // تاريخ الإشعار الثاني
+
+        [MaxLength(100)]
+        public string? PerformanceClaimNoticeNumber { get; set; } // رقم إشعار المطالبة بالأداء
+        public DateTime? PerformanceClaimNoticeDate { get; set; } // تاريخ إشعار المطالبة بالأداء
+
+        [MaxLength(1000)]
+        public string? JudiciaryReturnReason { get; set; } // سبب الإعادة من نظام القضايا
+
+        [MaxLength(250)]
+        public string? CompanyName { get; set; } // إسم الشركه / الجهة
+
+        [MaxLength(250)]
+        public string? Portfolio { get; set; } // المحفظة
+
+        [MaxLength(250)]
+        public string? GeneralDepartment { get; set; } // الإدارة العامة
+
+        [MaxLength(50)]
+        public string? Period { get; set; } // الفترة (2022-2025 / 2026)
 
         public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
     }
@@ -130,6 +265,72 @@ namespace ExcelDashboard.Models
 
         [MaxLength(100)]
         public string? GracePeriod { get; set; } // فترة السماح
+
+        public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// عقد واحد بصفحة "العقود التي تنتهي فترة سماحها خلال 3 أشهر" - مستورد من ملف
+    /// "العقود.xlsx" (مختلف كليًا عن ملف عقود "الطرح" أعلاه رغم تشابه بعض الأسماء). حقل صريح
+    /// لكل عمود بالملف مباشرة. إعادة رفع الملف تستبدل كل العقود القديمة بالكامل (بلا تراكم).
+    /// </summary>
+    public class ContractPeriodRecord
+    {
+        public int Id { get; set; }
+
+        [MaxLength(100)]
+        public string? OpportunityNumber { get; set; } // رقم الفرصة
+
+        [MaxLength(400)]
+        public string? OpportunityName { get; set; } // اسم الفرصة
+
+        [MaxLength(1000)]
+        public string? OpportunityDescription { get; set; } // وصف الفرصة
+
+        [MaxLength(100)]
+        public string? ContractNumber { get; set; } // رقم العقد (CN-xxxxx)
+
+        [MaxLength(100)]
+        public string? PaperContractNumber { get; set; } // رقم العقد الورقي
+
+        [MaxLength(100)]
+        public string? ContractType { get; set; } // نوع العقد (استثمار / تأجير مباشر)
+
+        [MaxLength(100)]
+        public string? ContractSource { get; set; } // مصدر العقد
+
+        [MaxLength(150)]
+        public string? ContractStatus { get; set; } // حالة العقد (تم الموافقة على العقد / ملحق / تمديد)
+
+        public int? ContractDurationYears { get; set; } // مدة العقد
+
+        public DateTime? ContractEndDate { get; set; } // تاريخ نهاية العقد
+        public DateTime? SiteDeliveryDate { get; set; } // تاريخ تسليم الموقع
+
+        [MaxLength(50)]
+        public string? ContractValidityStatus { get; set; } // حالة سريان العقد
+
+        public decimal? PrepPeriodPercent { get; set; } // نسبة فترة التجهيز والانشاء
+        public int? PrepPeriodDurationDays { get; set; } // مدة فترة التجهيز بالأيام
+
+        // نهاية فترة التجهيز - أساس رسم "العقود اللي شارفت على الانتهاء" (أحمر/أخضر)
+        public DateTime? PrepPeriodEndDate { get; set; }
+
+        public DateTime? PaymentDueStartDate { get; set; } // تاريخ بداية استحقاق الدفعة
+        public DateTime? FirstPaymentAfterPrepDate { get; set; } // تاريخ أول دفعة بعد فترة التجهيز
+
+        // حالة العقد (خارج فترة التجهيز - داخل فترة التجهيز - متعثر) - أساس الرسم المكدَّس
+        [MaxLength(150)]
+        public string? PrepPeriodStatus { get; set; }
+
+        [MaxLength(250)]
+        public string? GeneralDepartment { get; set; } // الادارة العامة
+
+        [MaxLength(250)]
+        public string? Portfolio { get; set; } // الادارة الفرعية
+
+        // تاريخ التوقيع - أساس "تاريخ العقد" بدرج تفاصيل قوس "العقود اللي شارفت على الانتهاء"
+        public DateTime? SigningDate { get; set; }
 
         public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
     }

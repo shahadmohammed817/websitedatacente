@@ -45,7 +45,7 @@ namespace ExcelDashboard.Services
         /// عنوان رسم الأعمدة الأول أعلى اللوحة — يختلف بين لوحة "عام" (إجمالي الأمانة
         /// مقابل إجمالي البلديات) ولوحات النطاق/البند (تفصيل حسب كل جهة على حدة)
         /// </summary>
-        public string EntityChartTitle { get; set; } = "الإيرادات الشهرية لكل جهة";
+        public string EntityChartTitle { get; set; } = "المحصّل ربع السنوي لكل جهة";
 
         /// <summary>
         /// نص الشارة أعلى رسم الأعمدة الأول (يوضّح للمستخدم ماذا يفعل الضغط على أي عمود)
@@ -67,6 +67,32 @@ namespace ExcelDashboard.Services
         /// </summary>
         public List<string> SubItemLabels { get; set; } = new();
         public List<decimal> SubItemValues { get; set; } = new();
+
+        /// <summary>
+        /// تفصيل البنود الفرعية (عمود "الفئة/الصنف") لكل بند رئيسي (Classification) على حدة -
+        /// تُستخدم لتبديل رسم "توزيع الإيرادات حسب البنود الفرعية" فورًا بالمتصفح عند الضغط
+        /// على أي بند برسم "أعلى بنود الإيرادات" (بلا طلب إضافي للخادم)
+        /// </summary>
+        public List<TopItemSubBreakdown> TopItemSubItems { get; set; } = new();
+
+        /// <summary>بيانات رسم "أداء الإيرادات حسب نوع الإيراد" - صف واحد لكل تصنيف بند رئيسي</summary>
+        public List<RevenueTypePerformanceRow> RevenueTypePerformance { get; set; } = new();
+
+        // ===== بطاقات "المحصل الحالي/السابق ونسبة النمو" (سنة بسنة، حسب أحدث سنة بالبيانات) =====
+        public int RevenueCurrentYear { get; set; }
+        public int RevenuePreviousYear { get; set; }
+        public decimal RevenueCurrentYearCollected { get; set; }
+        public decimal RevenuePreviousYearCollected { get; set; }
+        public decimal RevenueGrowthPercent { get; set; }
+
+        /// <summary>
+        /// تفصيل المحصّل حسب أساس الاستحقاق مقارنةً بتاريخ الدفع (RecordDate) وتاريخ الإنشاء
+        /// (CreatedDate) - "أساس استحقاق" (أُنشئت بنفس السنة الحالية)، "محصل من مديونيات"
+        /// (دُفعت بالسنة الحالية لكن أُنشئت بسنة أسبق)، "محصل أوامر تنفيذ" (لا تاريخ إنشاء مسجَّل
+        /// أصلاً). تُملأ من DashboardRecords الحية (لا علاقة لها بملف سنة الأساس 2025).
+        /// </summary>
+        public List<RevenueBasisBreakdownRow> RevenueBasisBreakdown { get; set; } = new();
+        public decimal RevenueBasisBreakdownTotal { get; set; }
 
         /// <summary>
         /// أعلى بنود الإيرادات — تُبنى دائمًا مباشرة من عمود "تصنيف البند" الخام
@@ -95,6 +121,31 @@ namespace ExcelDashboard.Services
         /// النظر عن أي إدارة فرعية يتم اختيارها من القائمة الجانبية.
         /// </summary>
         public List<DeptBreakdownDetail> InvestmentDepts { get; set; } = new();
+
+        /// <summary>
+        /// أكثر/أقل بلدية تفاعلاً (حسب إجمالي "المحصّل" باسمها بعمود "الجهة") — تُملأ
+        /// حصريًا من GetScopeDataAsync عند scope=Baladiyah بلا فلترة على بلدية محددة (لا تؤثر
+        /// على أي صفحة أخرى)، لبطاقتَي صفحة "بيانات البلديات"
+        /// </summary>
+        public string? TopActivityEntity { get; set; }
+        public decimal TopActivityCollected { get; set; }
+        public string? BottomActivityEntity { get; set; }
+        public decimal BottomActivityCollected { get; set; }
+
+        /// <summary>
+        /// ترتيب البلديات حسب إجمالي الإيرادات + نسبة التحصيل لكل بلدية — تُملأ حصريًا من
+        /// GetScopeDataAsync عند scope=Baladiyah، لرسم "أعلى البلديات إيرادًا" بصفحة "بيانات
+        /// البلديات" (مرتّبة تنازليًا حسب الإجمالي)
+        /// </summary>
+        public List<EntityRevenueRow> EntityRevenueBreakdown { get; set; } = new();
+    }
+
+    /// <summary>صف بلدية واحدة: إجمالي إيراداتها + نسبة تحصيلها — لرسم "أعلى البلديات إيرادًا"</summary>
+    public class EntityRevenueRow
+    {
+        public string Entity { get; set; } = string.Empty;
+        public decimal TotalValue { get; set; }
+        public decimal CollectionRatePercent { get; set; }
     }
 
     /// <summary>
@@ -116,6 +167,40 @@ namespace ExcelDashboard.Services
         public List<decimal> SubValues { get; set; } = new();
     }
 
+
+    /// <summary>
+    /// تفصيل البنود الفرعية (عمود "الفئة/الصنف") التابعة لبند رئيسي واحد (Classification) -
+    /// يُستخدم لتبديل رسم "البنود الفرعية" فورًا عند الضغط على بند برسم "أعلى بنود الإيرادات"
+    /// </summary>
+    public class TopItemSubBreakdown
+    {
+        public string ClassificationLabel { get; set; } = string.Empty;
+        public List<string> SubLabels { get; set; } = new();
+        public List<decimal> SubValues { get; set; } = new();
+        public decimal Total { get; set; }
+    }
+
+    /// <summary>
+    /// صف نوع إيراد واحد (Classification) برسم "أداء الإيرادات حسب نوع الإيراد" - المفوتر
+    /// والمحصّل من بيانات الإيرادات الفعلية (بنفس تصفية اللوحة الحالية)، والمستهدف السنوي من
+    /// صفحتَي "مستهدفات المالية"/"مستهدفات البلديات" (كلا المصدرين معًا، يُختار بينهما
+    /// بالمتصفح بلا طلب إضافي)، مُشتقًا تلقائيًا للجهات الفعلية الموجودة بهذا الصف فقط.
+    /// </summary>
+    public class RevenueTypePerformanceRow
+    {
+        public string ItemLabel { get; set; } = string.Empty;
+        public decimal Invoiced { get; set; }
+        public decimal Collected { get; set; }
+        public decimal TargetFinance { get; set; }
+        public decimal TargetBaladiyah { get; set; }
+    }
+
+    /// <summary>صف حالة واحدة (أساس استحقاق / محصل من مديونيات / محصل أوامر تنفيذ) بتفصيل المحصّل حسب أساس الاستحقاق</summary>
+    public class RevenueBasisBreakdownRow
+    {
+        public string CaseLabel { get; set; } = string.Empty;
+        public decimal CollectedValue { get; set; }
+    }
 
     /// <summary>
     /// تفصيل بيانات فئة/بند واحد (تُستخدم للتصفية التفاعلية بين الرسوم عند الضغط على أي بند)
@@ -284,6 +369,11 @@ namespace ExcelDashboard.Services
 
         public List<FinanceTargetItemRow> AmanahItems { get; set; } = new();
         public List<FinanceTargetItemRow> BaladiyahItems { get; set; } = new();
+
+        /// <summary>المحصّل الفعلي لكل ربع (Q1..Q4) - يقارَن بربع المستهدف السنوي (÷4) لعدم
+        /// توفر مستهدف ربعي حقيقي لوزارة المالية (مستهدف سنوي فقط بالملف المصدر)</summary>
+        public List<decimal> AmanahQuarterlyCollected { get; set; } = new();
+        public List<decimal> BaladiyahQuarterlyCollected { get; set; } = new();
     }
 
     /// <summary>صف نوع عقد واحد (كرت) بصفحة "الطرح" - عدد وقيمة العقود من هذا النوع</summary>
@@ -330,6 +420,9 @@ namespace ExcelDashboard.Services
 
         /// <summary>نسبة العقود المبرومة تراكميًا حتى هذه السنة، من نفس إجمالي الفرص المطروحة (لتبقى النسبتان قابلتين للمقارنة المباشرة)</summary>
         public decimal FinalizedPercent { get; set; }
+
+        /// <summary>نسبة الفرص الملغاة (حالة "إلغاء المنافسة" - تشمل أيضًا "لم يتقدم أحد" المدمجة بها عند الاستيراد) تراكميًا حتى هذه السنة، من نفس إجمالي الفرص المطروحة</summary>
+        public decimal CancelledPercent { get; set; }
     }
 
     /// <summary>صف (سنة + حالة) واحد بصفحة "الطرح" - عدد الفرص التي فُتحت مظاريفها بهذه السنة وبهذه الحالة</summary>
@@ -353,18 +446,26 @@ namespace ExcelDashboard.Services
         public DateTime? ContractDate { get; set; }
     }
 
+    /// <summary>صف حالة واحدة ضمن "الحالات قيد الإجراء" الثلاث بقوس "تحت إجراءات الترسية"</summary>
+    public class TarhStatusCountRow
+    {
+        public string Status { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
     /// <summary>
-    /// حالة "مدة الفرص" بصفحة "الطرح": توزيع الفرص (اللي عندها عقد فعلي بتاريخ فتح مظاريف وتاريخ
-    /// عقد) بين "ضمن 40 يومًا" و"تجاوزت 40 يومًا"، مع متوسط مدة الإنجاز بالأيام
+    /// "تحت إجراءات الترسية" بصفحة "الطرح": عدد الفرص بإحدى الحالات الثلاث قيد الإجراء (لم
+    /// تُبرَم ولم تُلغَ بعد)، ونسبتها من إجمالي الفرص التي فُتحت مظاريفها (=طُرحت)
     /// </summary>
     public class TarhDurationStatus
     {
+        /// <summary>إجمالي الفرص التي فُتحت مظاريفها (المرجع/المقام بحساب النسبة)</summary>
         public int TotalCount { get; set; }
-        public int WithinCount { get; set; }
-        public int OverCount { get; set; }
-        public decimal WithinPercent { get; set; }
-        public decimal OverPercent { get; set; }
-        public double AverageDays { get; set; }
+        /// <summary>عدد الفرص بإحدى الحالات الثلاث قيد الإجراء (البسط بحساب النسبة)</summary>
+        public int PendingCount { get; set; }
+        public decimal PendingPercent { get; set; }
+        /// <summary>توزيع العدد على كل حالة من الحالات الثلاث على حدة، تنازليًا</summary>
+        public List<TarhStatusCountRow> StatusBreakdown { get; set; } = new();
     }
 
     /// <summary>خيار واحد بقائمة اختيار الفرصة (زر "تتبع الفرصة")</summary>
@@ -373,7 +474,7 @@ namespace ExcelDashboard.Services
         public string OpportunityNumber { get; set; } = string.Empty;
         public string? OpportunityName { get; set; }
 
-        /// <summary>"ضمن 40 يوم" أو "تجاوزت 40 يوم" أو null إن تعذّر حساب المدة - لتلوين نتائج البحث فورًا بلا طلب إضافي</summary>
+        /// <summary>"ضمن 30 يوم" أو "تجاوزت 30 يوم" أو null إن تعذّر حساب المدة - لتلوين نتائج البحث فورًا بلا طلب إضافي</summary>
         public string? DurationStatus { get; set; }
     }
 
@@ -399,7 +500,7 @@ namespace ExcelDashboard.Services
         /// <summary>إجمالي مدة الفرصة بالأيام (فتح المظاريف إلى توقيع العقد)</summary>
         public int? TotalDays { get; set; }
 
-        /// <summary>"ضمن 40 يوم" أو "تجاوزت 40 يوم" - يتطلب توفر تاريخَي فتح المظاريف والعقد معًا</summary>
+        /// <summary>"ضمن 30 يوم" أو "تجاوزت 30 يوم" - يتطلب توفر تاريخَي فتح المظاريف والعقد معًا</summary>
         public string? DurationStatus { get; set; }
     }
 
@@ -421,10 +522,10 @@ namespace ExcelDashboard.Services
         /// <summary>إجمالي عدد الفرص (رقم الفرصة) ضمن التصفية الحالية</summary>
         public int TotalOpportunities { get; set; }
 
-        /// <summary>قيمة وعدد العقود المبرومة حسب الإدارة العامة (رسم 1)</summary>
+        /// <summary>عدد وقيمة الفرص التي طُرحت (فُتحت مظاريفها) بسنة 2026 بالضبط، حسب الإدارة العامة (رسم 1)</summary>
         public List<TarhDeptSummaryRow> DeptSummary { get; set; } = new();
 
-        /// <summary>قيمة وعدد العقود المبرومة حسب المحفظة الفرعية، مع اسم الإدارة العامة لكل صف (رسم 2)</summary>
+        /// <summary>نفس فكرة DeptSummary حسب المحفظة الفرعية، مع اسم الإدارة العامة لكل صف (رسم 2)</summary>
         public List<TarhFinalizedByPortfolioRow> FinalizedByPortfolio { get; set; } = new();
 
         /// <summary>نسبتا الطرح والإبرام التراكميتان حسب السنة (رسم 3) - بلا أي فلاتر، كل السنوات دائمًا</summary>
@@ -436,7 +537,7 @@ namespace ExcelDashboard.Services
         /// <summary>عدد الفرص التي فُتحت مظاريفها لكل (سنة، حالة) - لرسم الأعمدة المكدّسة</summary>
         public List<TarhEnvelopeStatusRow> EnvelopeByYearStatus { get; set; } = new();
 
-        /// <summary>حالة مدة الفرص (ضمن/تجاوزت 40 يومًا) + متوسط الأيام</summary>
+        /// <summary>"تحت إجراءات الترسية" - عدد الفرص قيد الإجراء ونسبتها من إجمالي فتح المظاريف</summary>
         public TarhDurationStatus DurationStatus { get; set; } = new();
 
         public List<string> DepartmentOptions { get; set; } = new();
@@ -466,35 +567,39 @@ namespace ExcelDashboard.Services
         /// <summary>رحلة فرصة واحدة (فتح المظاريف ← الترسية ← توقيع العقد) برقم الفرصة</summary>
         Task<TarhOpportunityTimeline> GetTarhOpportunityTimelineAsync(string opportunityNumber);
 
-        Task<SectionDashboardData> GetSectionDataAsync(int sectionId, bool includeSubSections = true, string? quarter = null, string? contractNumber = null);
+        Task<SectionDashboardData> GetSectionDataAsync(int sectionId, bool includeSubSections = true, string? quarter = null, string? contractNumber = null, int? month = null);
 
         /// <summary>
         /// بيانات مجمّعة لعدة بنود معاً (مع كل بنودها الفرعية) — تُستخدم لمجموعات
         /// الإدارات العامة المكررة بنفس الاسم تحت أكثر من بند
         /// </summary>
-        Task<SectionDashboardData> GetSectionsDataAsync(IEnumerable<int> sectionIds, string? quarter = null, string? contractNumber = null);
+        Task<SectionDashboardData> GetSectionsDataAsync(IEnumerable<int> sectionIds, string? quarter = null, string? contractNumber = null, int? month = null);
 
         /// <summary>
         /// بيانات لوحة كاملة لجهة واحدة (مثل: بلدية الحناكية) عبر كل بنودها
         /// </summary>
-        Task<SectionDashboardData> GetEntityDataAsync(string entityName, string? quarter = null, string? contractNumber = null);
+        Task<SectionDashboardData> GetEntityDataAsync(string entityName, string? quarter = null, string? contractNumber = null, int? month = null);
 
         Task<decimal> GetScopeTotalRevenueAsync(ScopeType scope);
 
         /// <summary>
         /// بيانات لوحة تفاعلية مجمّعة لكل بنود نطاق معين (الأمانة أو البلدية) بالكامل
         /// </summary>
-        Task<SectionDashboardData> GetScopeDataAsync(ScopeType scope, string? quarter = null, string? contractNumber = null);
+        Task<SectionDashboardData> GetScopeDataAsync(ScopeType scope, string? quarter = null, string? contractNumber = null, int? month = null);
 
         /// <summary>
         /// بيانات لوحة عامة مجمّعة لعدة نطاقات معاً (تُستخدم كبديل عن نطاق "الكل" القديم)
         /// </summary>
-        Task<SectionDashboardData> GetOverviewDataAsync(IEnumerable<ScopeType> scopes, string? quarter = null, string? contractNumber = null);
+        Task<SectionDashboardData> GetOverviewDataAsync(IEnumerable<ScopeType> scopes, string? quarter = null, string? contractNumber = null, int? month = null);
     }
 
     public class AnalyticsService : IAnalyticsService
     {
         private readonly AppDbContext _db;
+
+        // سنة "محصل سنة الأساس" ببطاقتَي رسم "أداء الإيرادات" بالرئيسية - مصدرها جدول
+        // RevenueBaselineCollectedItems المنفصل (ملف خارجي)، وليس DashboardRecords
+        private const int RevenueBaselineYear = 2025;
 
         public AnalyticsService(AppDbContext db)
         {
@@ -505,11 +610,16 @@ namespace ExcelDashboard.Services
         /// يطبّق تصفية اختيارية بحسب رقم العقد (بحث جزئي) والربع (تطابق تام) على استعلام السجلات.
         /// تُستخدم من مربع البحث وقائمة "الربع" التفاعلية أعلى كل لوحة بيانات.
         /// </summary>
-        private static IQueryable<DashboardRecord> ApplyFilters(IQueryable<DashboardRecord> query, string? quarter, string? contractNumber)
+        private static IQueryable<DashboardRecord> ApplyFilters(IQueryable<DashboardRecord> query, string? quarter, string? contractNumber, int? month = null)
         {
             if (!string.IsNullOrWhiteSpace(quarter))
             {
                 query = query.Where(r => r.Quarter == quarter);
+            }
+
+            if (month.HasValue)
+            {
+                query = query.Where(r => r.Month == month);
             }
 
             if (!string.IsNullOrWhiteSpace(contractNumber))
@@ -521,7 +631,31 @@ namespace ExcelDashboard.Services
             return query;
         }
 
-        public async Task<SectionDashboardData> GetSectionDataAsync(int sectionId, bool includeSubSections = true, string? quarter = null, string? contractNumber = null)
+        /// <summary>
+        /// يقلّص الاستعلام لأعمدة DashboardRecord التي يقرأها BuildResult فعليًا فقط (10 من أصل
+        /// ~30 عمودًا) بدل سحب الصف كاملاً - فرق ملموس بجدول بمئات آلاف الصفوف (قِيست تجريبيًا:
+        /// ~4.7 ثانية للصف كامل مقابل ~2.8 ثانية لهذا الإسقاط على 269,612 صف). يُستخدم فقط بمسارات
+        /// تُمرَّر فيها النتيجة إلى BuildResult حصرًا بلا أي استهلاك آخر لبقية أعمدة السجل
+        /// (لا يُستخدم بـ GetScopeDataAsync لأنها تُعيد استخدام نفس records لاحقًا لتفصيل
+        /// الإدارات العامة/الفرعية ببند الاستثمار، والتي تحتاج أعمدة إضافية)
+        /// </summary>
+        private static IQueryable<DashboardRecord> ProjectForBuildResult(IQueryable<DashboardRecord> query) =>
+            query.Select(r => new DashboardRecord
+            {
+                SectionId = r.SectionId,
+                TotalValue = r.TotalValue,
+                CollectedValue = r.CollectedValue,
+                UncollectedValue = r.UncollectedValue,
+                TargetValue = r.TargetValue,
+                RecordDate = r.RecordDate,
+                CreatedDate = r.CreatedDate,
+                Category = r.Category,
+                Classification = r.Classification,
+                Quarter = r.Quarter,
+                Entity = r.Entity
+            });
+
+        public async Task<SectionDashboardData> GetSectionDataAsync(int sectionId, bool includeSubSections = true, string? quarter = null, string? contractNumber = null, int? month = null)
         {
             var sectionIds = new List<int> { sectionId };
 
@@ -530,21 +664,21 @@ namespace ExcelDashboard.Services
                 sectionIds.AddRange(await GetDescendantIdsAsync(sectionId));
             }
 
-            var query = _db.DashboardRecords.Where(r => sectionIds.Contains(r.SectionId));
-            var records = await ApplyFilters(query, quarter, contractNumber).ToListAsync();
+            var query = _db.DashboardRecords.AsNoTracking().Where(r => sectionIds.Contains(r.SectionId));
+            var records = await ProjectForBuildResult(ApplyFilters(query, quarter, contractNumber, month)).ToListAsync();
 
-            return BuildResult(records);
+            return await BuildResult(records);
         }
 
-        public async Task<SectionDashboardData> GetEntityDataAsync(string entityName, string? quarter = null, string? contractNumber = null)
+        public async Task<SectionDashboardData> GetEntityDataAsync(string entityName, string? quarter = null, string? contractNumber = null, int? month = null)
         {
-            var query = _db.DashboardRecords.Where(r => r.Entity == entityName);
-            var records = await ApplyFilters(query, quarter, contractNumber).ToListAsync();
+            var query = _db.DashboardRecords.AsNoTracking().Where(r => r.Entity == entityName);
+            var records = await ProjectForBuildResult(ApplyFilters(query, quarter, contractNumber, month)).ToListAsync();
 
-            return BuildResult(records);
+            return await BuildResult(records);
         }
 
-        public async Task<SectionDashboardData> GetSectionsDataAsync(IEnumerable<int> sectionIds, string? quarter = null, string? contractNumber = null)
+        public async Task<SectionDashboardData> GetSectionsDataAsync(IEnumerable<int> sectionIds, string? quarter = null, string? contractNumber = null, int? month = null)
         {
             var allIds = new List<int>();
             foreach (var id in sectionIds.Distinct())
@@ -554,10 +688,10 @@ namespace ExcelDashboard.Services
             }
             allIds = allIds.Distinct().ToList();
 
-            var query = _db.DashboardRecords.Where(r => allIds.Contains(r.SectionId));
-            var records = await ApplyFilters(query, quarter, contractNumber).ToListAsync();
+            var query = _db.DashboardRecords.AsNoTracking().Where(r => allIds.Contains(r.SectionId));
+            var records = await ProjectForBuildResult(ApplyFilters(query, quarter, contractNumber, month)).ToListAsync();
 
-            return BuildResult(records);
+            return await BuildResult(records);
         }
 
         /// <summary>
@@ -566,7 +700,7 @@ namespace ExcelDashboard.Services
         /// </summary>
         private async Task<List<int>> GetDescendantIdsAsync(int sectionId)
         {
-            var all = await _db.Sections
+            var all = await _db.Sections.AsNoTracking()
                 .Where(s => s.IsActive)
                 .Select(s => new { s.Id, s.ParentSectionId })
                 .ToListAsync();
@@ -591,12 +725,12 @@ namespace ExcelDashboard.Services
 
         public async Task<decimal> GetScopeTotalRevenueAsync(ScopeType scope)
         {
-            var sectionIds = await _db.Sections
+            var sectionIds = await _db.Sections.AsNoTracking()
                 .Where(s => s.Scope == scope && s.IsActive)
                 .Select(s => s.Id)
                 .ToListAsync();
 
-            return await _db.DashboardRecords
+            return await _db.DashboardRecords.AsNoTracking()
                 .Where(r => sectionIds.Contains(r.SectionId))
                 .SumAsync(r => r.TotalValue ?? 0);
         }
@@ -605,15 +739,15 @@ namespace ExcelDashboard.Services
         /// يجمّع بيانات كل البنود (الرئيسية والفرعية) التابعة لنطاق واحد (الأمانة أو البلدية)
         /// ليُعرض كلوحة بيانات عامة عند اختيار النطاق من القائمة الجانبية مباشرة
         /// </summary>
-        public async Task<SectionDashboardData> GetScopeDataAsync(ScopeType scope, string? quarter = null, string? contractNumber = null)
+        public async Task<SectionDashboardData> GetScopeDataAsync(ScopeType scope, string? quarter = null, string? contractNumber = null, int? month = null)
         {
-            var sectionIds = await _db.Sections
+            var sectionIds = await _db.Sections.AsNoTracking()
                 .Where(s => s.Scope == scope && s.IsActive)
                 .Select(s => s.Id)
                 .ToListAsync();
 
-            var query = _db.DashboardRecords.Where(r => sectionIds.Contains(r.SectionId));
-            var records = await ApplyFilters(query, quarter, contractNumber).ToListAsync();
+            var query = _db.DashboardRecords.AsNoTracking().Where(r => sectionIds.Contains(r.SectionId));
+            var records = await ApplyFilters(query, quarter, contractNumber, month).ToListAsync();
 
             // مستوى النطاق (الأمانة / البلدية): الرسم يعرض البنود الأساسية فقط
             // (تصنيف البند)، وليس البنود الفرعية
@@ -631,17 +765,54 @@ namespace ExcelDashboard.Services
             if (scope == ScopeType.Baladiyah)
             {
                 entityGroupOverride = sectionIds.Distinct().ToDictionary(id => id, _ => "البلديات");
-                entityChartTitle = "الإيرادات الشهرية لإجمالي البلديات";
+                entityChartTitle = "الإيرادات ربع السنوية لإجمالي البلديات";
                 entityChartBadge = "اختر بلدية من القائمة لعرض تفاصيلها";
             }
 
-            var result = BuildResult(records, rootNameMap, entityGroupOverride, entityChartTitle, entityChartBadge, subItemsRootFilter: "استثمار");
+            var result = await BuildResult(records, rootNameMap, entityGroupOverride, entityChartTitle, entityChartBadge);
 
             // صفحة "بنود الأمانة" فقط: نُرفق تفصيل الإدارات العامة/الفرعية الخاص ببند
             // الاستثمار (لا يؤثر إطلاقًا على نطاق البلدية أو أي صفحة أخرى)
             if (scope == ScopeType.Amanah)
             {
                 result.InvestmentDepts = await BuildInvestmentDeptBreakdownAsync(records);
+            }
+
+            // صفحة "بنود البلدية" فقط: أكثر/أقل بلدية تفاعلاً (حسب إجمالي المحصّل) + ترتيب
+            // البلديات حسب إجمالي الإيرادات ونسبة التحصيل (رسم "أعلى البلديات إيرادًا")
+            if (scope == ScopeType.Baladiyah)
+            {
+                var byEntity = records
+                    .Where(r => !string.IsNullOrWhiteSpace(r.Entity))
+                    .GroupBy(r => r.Entity!.Trim())
+                    .Select(g => new
+                    {
+                        Entity = g.Key,
+                        Total = g.Sum(x => x.TotalValue ?? 0),
+                        Collected = g.Sum(x => x.CollectedValue ?? 0)
+                    })
+                    .ToList();
+
+                if (byEntity.Count > 0)
+                {
+                    var top = byEntity.OrderByDescending(x => x.Collected).First();
+                    result.TopActivityEntity = top.Entity;
+                    result.TopActivityCollected = top.Collected;
+
+                    var bottom = byEntity.OrderBy(x => x.Collected).First();
+                    result.BottomActivityEntity = bottom.Entity;
+                    result.BottomActivityCollected = bottom.Collected;
+
+                    result.EntityRevenueBreakdown = byEntity
+                        .OrderByDescending(x => x.Total)
+                        .Select(x => new EntityRevenueRow
+                        {
+                            Entity = x.Entity,
+                            TotalValue = x.Total,
+                            CollectionRatePercent = x.Total > 0 ? Math.Round(x.Collected / x.Total * 100, 1) : 0
+                        })
+                        .ToList();
+                }
             }
 
             return result;
@@ -657,7 +828,7 @@ namespace ExcelDashboard.Services
         /// </summary>
         private async Task<List<DeptBreakdownDetail>> BuildInvestmentDeptBreakdownAsync(List<DashboardRecord> records)
         {
-            var allSections = await _db.Sections
+            var allSections = await _db.Sections.AsNoTracking()
                 .Where(s => s.Scope == ScopeType.Amanah && s.IsActive)
                 .Select(s => new { s.Id, s.NameAr, s.ParentSectionId })
                 .ToListAsync();
@@ -744,17 +915,17 @@ namespace ExcelDashboard.Services
         /// يجمّع بيانات عدة نطاقات معاً (الأمانة + البلدية) لعرض لوحة عامة شاملة
         /// دون الحاجة لأيقونة "الكل" المستقلة
         /// </summary>
-        public async Task<SectionDashboardData> GetOverviewDataAsync(IEnumerable<ScopeType> scopes, string? quarter = null, string? contractNumber = null)
+        public async Task<SectionDashboardData> GetOverviewDataAsync(IEnumerable<ScopeType> scopes, string? quarter = null, string? contractNumber = null, int? month = null)
         {
             var scopeList = scopes.ToList();
-            var sections = await _db.Sections
+            var sections = await _db.Sections.AsNoTracking()
                 .Where(s => scopeList.Contains(s.Scope) && s.IsActive)
                 .Select(s => new { s.Id, s.Scope })
                 .ToListAsync();
             var sectionIds = sections.Select(s => s.Id).ToList();
 
-            var query = _db.DashboardRecords.Where(r => sectionIds.Contains(r.SectionId));
-            var records = await ApplyFilters(query, quarter, contractNumber).ToListAsync();
+            var query = _db.DashboardRecords.AsNoTracking().Where(r => sectionIds.Contains(r.SectionId));
+            var records = await ProjectForBuildResult(ApplyFilters(query, quarter, contractNumber, month)).ToListAsync();
 
             // مستوى "عام": الرسم يعرض البنود الأساسية فقط، ويتم دمج بيانات الأمانة
             // والبلدية تلقائياً إذا كان اسم البند الأساسي نفسه (التجميع هنا يتم حسب
@@ -767,13 +938,12 @@ namespace ExcelDashboard.Services
                 s => s.Id,
                 s => s.Scope == ScopeType.Amanah ? "الأمانة" : "البلديات");
 
-            return BuildResult(
+            return await BuildResult(
                 records,
                 rootNameMap,
                 entityGroupOverride: scopeGroupMap,
-                entityChartTitle: "إجمالي الإيرادات الشهرية: الأمانة مقابل البلديات",
-                entityChartBadge: "اضغط لعرض تفاصيل النطاق",
-                subItemsRootFilter: "استثمار");
+                entityChartTitle: "المحصّل ربع السنوي: الأمانة مقابل البلديات",
+                entityChartBadge: "اضغط لعرض تفاصيل النطاق");
         }
 
         /// <summary>
@@ -783,7 +953,7 @@ namespace ExcelDashboard.Services
         /// </summary>
         private async Task<Dictionary<int, string>> BuildRootNameMapAsync(IEnumerable<int> sectionIds)
         {
-            var allSections = await _db.Sections
+            var allSections = await _db.Sections.AsNoTracking()
                 .Select(s => new { s.Id, s.ParentSectionId, s.NameAr })
                 .ToListAsync();
 
@@ -819,13 +989,12 @@ namespace ExcelDashboard.Services
         /// منطق التجميع المشترك (KPIs + الرسوم البيانية) المستخدم في كل أنواع اللوحات
         /// (بند واحد / نطاق كامل / لوحة عامة)
         /// </summary>
-        private static SectionDashboardData BuildResult(
+        private async Task<SectionDashboardData> BuildResult(
             List<DashboardRecord> records,
             Dictionary<int, string>? groupByRootName = null,
             Dictionary<int, string>? entityGroupOverride = null,
             string? entityChartTitle = null,
-            string? entityChartBadge = null,
-            string? subItemsRootFilter = null)
+            string? entityChartBadge = null)
         {
 
             var result = new SectionDashboardData { HasData = records.Count > 0 };
@@ -892,35 +1061,223 @@ namespace ExcelDashboard.Services
             result.CategoryUncollected = byCategory.Select(x => x.Uncollected).ToList();
             result.CategoryDetails = byCategory;
 
-            // توزيع الإيرادات حسب البنود الفرعية (عمود "الفئة/الصنف" الخام لكل سجل، بصرف
-            // النظر عن تجميع البند الأساسي) — أدق من CategoryLabels بلوحة "عام".
-            // نعرض فقط أعلى البنود الفرعية حسب الإيراد، ونجمع الباقي (إن وُجد) تحت "أخرى"
-            // حتى لا يزدحم الرسم بعشرات البنود الصغيرة.
-            // subItemsRootFilter (لوحة "عام"/نطاق كامل فقط): يقتصر هذا الرسم تحديدًا على بند
-            // رئيسي واحد (افتراضيًا "استثمار") بدل خلط كل البنود الرئيسية معًا في نفس الرسم -
-            // باقي الرسوم (CategoryLabels، TopItemLabels...) تبقى تعكس كل البيانات كالمعتاد
-            var subItemsSource = (subItemsRootFilter != null && groupByRootName != null)
-                ? records.Where(r => groupByRootName.TryGetValue(r.SectionId, out var rn) && rn == subItemsRootFilter).ToList()
-                : records;
+            // توزيع الإيرادات حسب البنود الفرعية (عمود "الفئة/الصنف") مُقسَّم حسب البند الرئيسي
+            // (Classification) الذي يتبع له كل بند فرعي - يبني تفصيلاً كاملاً واحدًا لكل بند
+            // رئيسي (بدل قائمة عالمية واحدة مقسورة سابقًا على "استثمار" فقط)، حتى تستطيع الواجهة
+            // تبديل رسمة "البنود الفرعية" فورًا عند الضغط على أي بند برسمة "أعلى بنود الإيرادات"
+            // (بلا أي طلب إضافي للخادم) - تمامًا كتصفية الإدارة/الإدارة الفرعية بصفحة "الطرح".
+            // التجميع يتم حسب اسم "البند الفرعي" الرسمي من جدول Sections (نفس مصدر قائمة
+            // "البند الفرعي" بشريط الفلاتر) وليس نص عمود "الفئة/الصنف" الخام - النص الخام قد
+            // يحمل عدة صيغ كتابة مختلفة لنفس البند الفعلي (كانت تُظهر شرائح مكررة بالرسم لا تطابق
+            // قائمة الفلاتر النظيفة)، بينما استيراد البيانات نفسه يوحّد كل الصيغ المتشابهة تحت نفس
+            // معرّف القسم (مطابقة برقم البند أو مطابقة تقريبية للاسم - راجع DataImportService)
+            var sectionIdsInRecords = records.Select(r => r.SectionId).Distinct().ToList();
+            var subItemNameBySectionId = await _db.Sections.AsNoTracking()
+                .Where(s => sectionIdsInRecords.Contains(s.Id))
+                .Select(s => new { s.Id, s.NameAr })
+                .ToDictionaryAsync(s => s.Id, s => s.NameAr);
+
+            string SubItemLabelFor(DashboardRecord r) =>
+                subItemNameBySectionId.TryGetValue(r.SectionId, out var name) && !string.IsNullOrWhiteSpace(name)
+                    ? name
+                    : (r.Category ?? string.Empty).Trim();
 
             const int topSubItemCount = 6;
-            var subItemGroups = subItemsSource
-                .Where(r => !string.IsNullOrWhiteSpace(r.Category))
-                .GroupBy(r => r.Category!.Trim())
-                .Select(g => new { Label = g.Key, Total = g.Sum(x => x.TotalValue ?? 0) })
-                .Where(x => x.Total > 0)
+            var subItemsByClassification = records
+                .Where(r => !string.IsNullOrWhiteSpace(r.Classification) && !string.IsNullOrWhiteSpace(SubItemLabelFor(r)))
+                .GroupBy(r => r.Classification!.Trim())
+                .Select(g =>
+                {
+                    var groups = g.GroupBy(r => SubItemLabelFor(r))
+                        .Select(cg => new { Label = cg.Key, Total = cg.Sum(x => x.TotalValue ?? 0) })
+                        .Where(x => x.Total > 0)
+                        .OrderByDescending(x => x.Total)
+                        .ToList();
+
+                    var top = groups.Take(topSubItemCount).ToList();
+                    var otherTotal = groups.Skip(topSubItemCount).Sum(x => x.Total);
+                    var labels = top.Select(x => x.Label).ToList();
+                    var values = top.Select(x => x.Total).ToList();
+                    if (otherTotal > 0) { labels.Add("أخرى"); values.Add(otherTotal); }
+
+                    return new TopItemSubBreakdown
+                    {
+                        ClassificationLabel = g.Key,
+                        SubLabels = labels,
+                        SubValues = values,
+                        Total = g.Sum(x => x.TotalValue ?? 0)
+                    };
+                })
                 .OrderByDescending(x => x.Total)
                 .ToList();
 
-            var topSubItems = subItemGroups.Take(topSubItemCount).ToList();
-            var otherSubItemsTotal = subItemGroups.Skip(topSubItemCount).Sum(x => x.Total);
+            result.TopItemSubItems = subItemsByClassification;
 
-            result.SubItemLabels = topSubItems.Select(x => x.Label).ToList();
-            result.SubItemValues = topSubItems.Select(x => x.Total).ToList();
-            if (otherSubItemsTotal > 0)
+            // العرض الافتراضي لرسمة "البنود الفرعية" (قبل أي ضغط من المستخدمة) = تفصيل أعلى بند
+            // رئيسي قيمةً تلقائيًا
+            if (subItemsByClassification.Count > 0)
             {
-                result.SubItemLabels.Add("أخرى");
-                result.SubItemValues.Add(otherSubItemsTotal);
+                result.SubItemLabels = subItemsByClassification[0].SubLabels;
+                result.SubItemValues = subItemsByClassification[0].SubValues;
+            }
+
+            // ==================================================================
+            // "أداء الإيرادات حسب نوع الإيراد": مفوتر/محصّل من بيانات الإيرادات الفعلية (نفس
+            // تصفية اللوحة الحالية)، والمستهدف السنوي من صفحتَي "مستهدفات المالية"/"مستهدفات
+            // البلديات" (سنويًا فقط، كلا المصدرين معًا يُرسَلان دومًا - الاختيار بينهما يتم
+            // بالمتصفح بلا طلب إضافي). "الجهة" اللازمة لاختيار حصة المستهدف الصحيحة تُشتق
+            // تلقائيًا من الجهات الفعلية الموجودة بسجلات كل بند (بلا قائمة اختيار منفصلة):
+            // لو وُجدت سجلات أمانة تُضاف حصة الأمانة من المصدر، ولو وُجدت سجلات بلديات تُضاف
+            // حصة "كل البلديات" أيضًا (فتُجمَعان معًا تلقائيًا باللوحات المجمّعة كالرئيسية)
+            // ==================================================================
+            // بند "إيرادات استثمار العقارات البلدية" فقط ينقسم فعليًا إلى تصنيفين مختلفين بكلا
+            // ملفَي المستهدف (المالية بعمود "البند الفرعي"، البلديات بعمود "البند"): "العقود
+            // الاستثمارية"/"التأجير المباشر" = تصنيف "استثمار"، و"التأجير المؤقت" = تصنيف "تأجير
+            // مؤقت" - بقية البنود الرئيسية تطابق تصنيفًا واحدًا فقط (تفاصيلها الفرعية كلها تندرج
+            // تحت نفس التصنيف، فتُجمَع معًا بلا تفريق). لازم التفريق هنا بالتحديد لأن التجميع
+            // القديم (حسب "البند الرئيسي" فقط) كان يعطي "استثمار" و"تأجير مؤقت" نفس المستهدف
+            // المُجمَّع للاثنين معًا (خطأ اكتشفته المستخدمة: مستهدف "استثمار" وحده للأمانة من
+            // ملف المالية = 307,717,614 فقط، وليس 313 مليون المجمّعة مع تأجير مؤقت أيضًا)
+            const string InvestmentMainItemFinance = "إيرادات استثمار العقارات البلدية";
+            const string TemporaryLeaseSubItem = "التأجير المؤقت";
+
+            // يُستخدَم لكلا مصدرَي المستهدف السنوي (المالية + البلديات والإسكان) لأن كلاهما
+            // من نفس صفوف نفس ملف "المستهدف السنوي" بنفس تسميات البند الرئيسي بالضبط
+            string? ResolveFinanceClassification(string mainItem, string? subItem)
+            {
+                if (mainItem == InvestmentMainItemFinance)
+                    return subItem != null && subItem.Trim() == TemporaryLeaseSubItem ? "تأجير مؤقت" : "استثمار";
+                return FinanceMainItemToClassifications.TryGetValue(mainItem, out var arr) && arr.Length > 0 ? arr[0] : null;
+            }
+
+            var allFinanceItemTargets = await _db.FinanceItemTargets.AsNoTracking().ToListAsync();
+
+            var financeTargetByScope = allFinanceItemTargets
+                .Where(t => t.TargetSource == "Finance")
+                .GroupBy(t => t.Scope)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.GroupBy(t => ResolveFinanceClassification(t.MainItem, t.SubItem))
+                          .Where(cg => cg.Key != null)
+                          .ToDictionary(cg => cg.Key!, cg => cg.Sum(t => t.AnnualTarget)));
+
+            // مستهدف وزارة البلديات والإسكان (سنوي فقط) - من نفس ملف "المستهدف السنوي"، نفس
+            // أسماء البنود الرئيسية بالضبط المستخدَمة بمصدر المالية أعلاه (لأنهما من نفس صفوف
+            // نفس الملف)، فيُستخدَم ResolveFinanceClassification نفسه بدل خريطة/تسميات منفصلة
+            // كانت تُنتج مطابقة جزئية غير موثوقة (بعض البنود تُحسَب صح وبعضها لا)
+            var housingTargetByScope = allFinanceItemTargets
+                .Where(t => t.TargetSource == "BaladiyahHousing")
+                .GroupBy(t => t.Scope)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.GroupBy(t => ResolveFinanceClassification(t.MainItem, t.SubItem))
+                          .Where(cg => cg.Key != null)
+                          .ToDictionary(cg => cg.Key!, cg => cg.Sum(t => t.AnnualTarget)));
+
+            result.RevenueTypePerformance = records
+                .Where(r => !string.IsNullOrWhiteSpace(r.Classification))
+                .GroupBy(r => r.Classification!.Trim())
+                .Select(g =>
+                {
+                    var classification = g.Key;
+                    var hasAmanah = g.Any(x => IsAmanah(x.Entity));
+                    var hasBaladiyah = g.Any(x => !IsAmanah(x.Entity) && !string.IsNullOrWhiteSpace(x.Entity));
+
+                    decimal targetFinance = 0;
+                    if (hasAmanah && financeTargetByScope.TryGetValue("Amanah", out var fAmanah) && fAmanah.TryGetValue(classification, out var fa))
+                        targetFinance += fa;
+                    if (hasBaladiyah && financeTargetByScope.TryGetValue("Baladiyah", out var fBaladiyah) && fBaladiyah.TryGetValue(classification, out var fb))
+                        targetFinance += fb;
+
+                    decimal targetBaladiyah = 0;
+                    if (hasAmanah && housingTargetByScope.TryGetValue("Amanah", out var hAmanah) && hAmanah.TryGetValue(classification, out var ha))
+                        targetBaladiyah += ha;
+                    if (hasBaladiyah && housingTargetByScope.TryGetValue("Baladiyah", out var hBaladiyah) && hBaladiyah.TryGetValue(classification, out var hb))
+                        targetBaladiyah += hb;
+
+                    return new RevenueTypePerformanceRow
+                    {
+                        ItemLabel = classification,
+                        Invoiced = g.Sum(x => x.TotalValue ?? 0),
+                        Collected = g.Sum(x => x.CollectedValue ?? 0),
+                        TargetFinance = targetFinance,
+                        TargetBaladiyah = targetBaladiyah
+                    };
+                })
+                .Where(x => x.Invoiced > 0)
+                .OrderByDescending(x => x.Invoiced)
+                .ToList();
+
+            // ==================== بطاقات "المحصل الحالي/سنة الأساس ونسبة النمو" ====================
+            // "الحالية" = أحدث سنة موجودة فعليًا ببيانات DashboardRecords (لا تتغيّر). "سنة الأساس"
+            // (RevenueBaselineYear) تُقرَأ من جدول منفصل تمامًا (RevenueBaselineCollectedItems)
+            // بدل بيانات تلك السنة داخل DashboardRecords نفسها - مصدرها أدق حسب تأكيد المستخدمة.
+            // يُصفّى مجموع سنة الأساس حسب نفس تصنيفات البند الظاهرة بالنطاق الحالي (records) حتى
+            // يستجيب لفلتر البند بالفلاتر تلقائيًا بلا أي طلب/منطق إضافي (تمامًا كأي بطاقة أخرى
+            // مبنية من records). إن لم تُرفَع بيانات سنة الأساس بعد، يُستخدم احتياطيًا نفس حساب
+            // DashboardRecords القديم (سنة سابقة = سنة حالية - 1) حتى لا تظهر بطاقة فارغة.
+            var recordsWithYear = records.Where(r => r.RecordDate.HasValue).ToList();
+            if (recordsWithYear.Count > 0)
+            {
+                var currentYear = recordsWithYear.Max(r => r.RecordDate!.Value.Year);
+                result.RevenueCurrentYear = currentYear;
+                var currentYearRecords = recordsWithYear.Where(r => r.RecordDate!.Value.Year == currentYear).ToList();
+                result.RevenueCurrentYearCollected = currentYearRecords.Sum(r => r.CollectedValue ?? 0);
+
+                // آخر شهر متوفّر فعليًا بالسنة الحالية (2026) - نُقيَّد بطاقة "محصل 2025" بنفس عدد
+                // الأشهر هذا (بدل سنة الأساس كاملة) حتى تبقى المقارنة عادلة بين سنة كاملة (2025)
+                // وسنة جزئية لسه بمنتصفها (2026) - بطلب صريح من المستخدمة
+                var currentYearMaxMonth = currentYearRecords.Max(r => r.RecordDate!.Value.Month);
+
+                var classificationsInScope = records
+                    .Where(r => !string.IsNullOrWhiteSpace(r.Classification))
+                    .Select(r => r.Classification!.Trim())
+                    .Distinct()
+                    .ToList();
+                var baselineItems = await _db.RevenueBaselineCollectedItems.AsNoTracking()
+                    .Where(b => classificationsInScope.Contains(b.Classification) && b.Month <= currentYearMaxMonth)
+                    .ToListAsync();
+
+                if (baselineItems.Count > 0)
+                {
+                    result.RevenuePreviousYear = RevenueBaselineYear;
+                    result.RevenuePreviousYearCollected = baselineItems.Sum(b => b.CollectedValue);
+                }
+                else
+                {
+                    var previousYear = currentYear - 1;
+                    result.RevenuePreviousYear = previousYear;
+                    result.RevenuePreviousYearCollected = recordsWithYear.Where(r => r.RecordDate!.Value.Year == previousYear).Sum(r => r.CollectedValue ?? 0);
+                }
+
+                result.RevenueGrowthPercent = result.RevenuePreviousYearCollected > 0
+                    ? Math.Round((result.RevenueCurrentYearCollected - result.RevenuePreviousYearCollected) / result.RevenuePreviousYearCollected * 100, 1)
+                    : 0;
+
+                // ==================== تفصيل المحصّل حسب أساس الاستحقاق ====================
+                // "أساس استحقاق": المحصّل من سجلات أُنشئت (CreatedDate) بنفس السنة الحالية.
+                // "محصل من مديونيات": المحصّل من سجلات دُفعت (RecordDate/تاريخ الدفع) بالسنة
+                // الحالية لكن أُنشئت بسنة أسبق (مديونية سابقة حُصّلت هذه السنة).
+                // "محصل أوامر تنفيذ": لا تاريخ إنشاء مسجَّل أصلاً لهذه السجلات، فيُعتمَد تاريخ
+                // الدفع فقط لحساب مجموعها المحصَّل.
+                var accrualCollected = records
+                    .Where(r => r.CreatedDate.HasValue && r.CreatedDate.Value.Year == currentYear)
+                    .Sum(r => r.CollectedValue ?? 0);
+                var fromDebtsCollected = records
+                    .Where(r => r.RecordDate.HasValue && r.RecordDate.Value.Year == currentYear
+                        && r.CreatedDate.HasValue && r.CreatedDate.Value.Year < currentYear)
+                    .Sum(r => r.CollectedValue ?? 0);
+                var executionOrdersCollected = records
+                    .Where(r => !r.CreatedDate.HasValue)
+                    .Sum(r => r.CollectedValue ?? 0);
+
+                result.RevenueBasisBreakdown = new List<RevenueBasisBreakdownRow>
+                {
+                    new() { CaseLabel = "أساس استحقاق", CollectedValue = accrualCollected },
+                    new() { CaseLabel = "محصل من مديونيات", CollectedValue = fromDebtsCollected },
+                    new() { CaseLabel = "محصل أوامر تنفيذ", CollectedValue = executionOrdersCollected }
+                };
+                result.RevenueBasisBreakdownTotal = accrualCollected + fromDebtsCollected + executionOrdersCollected;
             }
 
             // أعلى بنود الإيرادات: تُبنى دائمًا من عمود "تصنيف البند" الخام (Classification) —
@@ -976,7 +1333,7 @@ namespace ExcelDashboard.Services
             result.TrendCollected = byDate.Select(x => x.Collected).ToList();
             result.TrendUncollected = byDate.Select(x => x.Uncollected).ToList();
 
-            // الإيرادات الشهرية لكل جهة (أمانة المدينة المنورة نفسها + كل بلدية) بالاعتماد
+            // الإيرادات ربع السنوية لكل جهة (أمانة المدينة المنورة نفسها + كل بلدية) بالاعتماد
             // على عمود "الجهة" وعمود "تاريخ الدفع" — لرسم الأعمدة الأول أعلى اللوحة
             var byEntity = records
                 .Where(r => entityGroupOverride != null
@@ -988,11 +1345,12 @@ namespace ExcelDashboard.Services
                 {
                     Entity = g.Key,
                     Total = g.Sum(x => x.TotalValue ?? 0),
-                    Monthly = g.GroupBy(x => new { x.RecordDate!.Value.Year, x.RecordDate!.Value.Month })
-                        .Select(mg => new
+                    // الرسم يعرض "المحصّل" فقط (لا الإجمالي) بناءً على طلب صريح
+                    Quarterly = g.GroupBy(x => new { x.RecordDate!.Value.Year, Quarter = ((x.RecordDate!.Value.Month - 1) / 3) + 1 })
+                        .Select(qg => new
                         {
-                            Label = $"{mg.Key.Year}-{mg.Key.Month:D2}",
-                            Total = mg.Sum(x => x.TotalValue ?? 0)
+                            Label = $"{qg.Key.Year}-Q{qg.Key.Quarter}",
+                            Collected = qg.Sum(x => x.CollectedValue ?? 0)
                         })
                         .ToList()
                 })
@@ -1000,25 +1358,26 @@ namespace ExcelDashboard.Services
                 .Take(20) // سقف يمنع ازدحام الرسم إن وُجدت جهات كثيرة جداً بالبيانات
                 .ToList();
 
-            var entityMonths = byEntity
-                .SelectMany(e => e.Monthly.Select(m => m.Label))
+            var entityQuarters = byEntity
+                .SelectMany(e => e.Quarterly.Select(q => q.Label))
                 .Distinct()
                 .OrderBy(x => x)
                 .ToList();
 
-            // تسميات محور الأشهر تُعرض كاسم الشهر العربي فقط (بدون سنة أو رقم شهر)،
-            // بينما يبقى الترتيب الزمني الصحيح معتمدًا على المفتاح الداخلي "yyyy-MM"
-            result.EntityMonthLabels = entityMonths
-                .Select(m => ArabicMonthNames[int.Parse(m.Substring(5, 2)) - 1])
+            // تسميات محور الأرباع تُعرض "Q1".."Q4" (بلا سنة) — نفس تسميات رسمة "توزيع الإيرادات
+            // حسب الأرباع" الموجودة أصلاً بنفس الصفحة، بينما يبقى الترتيب الزمني الصحيح معتمدًا
+            // على المفتاح الداخلي "yyyy-Qn"
+            result.EntityMonthLabels = entityQuarters
+                .Select(q => "Q" + q.Substring(q.IndexOf('Q') + 1))
                 .ToList();
             result.EntityMonthlySeries = byEntity
                 .Select(e =>
                 {
-                    var monthlyMap = e.Monthly.ToDictionary(m => m.Label, m => m.Total);
+                    var quarterlyMap = e.Quarterly.ToDictionary(q => q.Label, q => q.Collected);
                     return new EntityMonthlySeries
                     {
                         Entity = e.Entity,
-                        Values = entityMonths.Select(m => monthlyMap.TryGetValue(m, out var v) ? v : 0m).ToList()
+                        Values = entityQuarters.Select(q => quarterlyMap.TryGetValue(q, out var v) ? v : 0m).ToList()
                     };
                 })
                 .ToList();
@@ -1052,7 +1411,7 @@ namespace ExcelDashboard.Services
 
         public async Task<TargetsComparisonData> GetTargetsComparisonDataAsync(string? entity = null)
         {
-            IQueryable<DashboardRecord> query = _db.DashboardRecords;
+            IQueryable<DashboardRecord> query = _db.DashboardRecords.AsNoTracking();
             if (!string.IsNullOrWhiteSpace(entity))
                 query = query.Where(r => r.Entity == entity);
 
@@ -1178,7 +1537,7 @@ namespace ExcelDashboard.Services
             var allMonthlyRows = allTargetRowsRaw;
             if (allMonthlyRows.Count > 0)
             {
-                var invoicedByEntity = await _db.DashboardRecords
+                var invoicedByEntity = await _db.DashboardRecords.AsNoTracking()
                     .Where(r => r.Entity != null && r.Entity != "")
                     .GroupBy(r => r.Entity!)
                     .Select(g => new { Entity = g.Key, Invoiced = g.Sum(x => x.TotalValue ?? 0) })
@@ -1349,24 +1708,14 @@ namespace ExcelDashboard.Services
             // مُصفّاة أصلاً بنفس الجهة أعلاه) - لا علاقة لها بـ RevenueType/Classification لأن
             // Book112.xlsx لا يحوي عمود "نوع الإيراد" فتبقى تلك الخريطة فارغة دومًا للبيانات
             // الحالية. المفوتر (records، مُصفّاة أصلاً بنفس الجهة) يُطابَق عبر تعيين ثابت صغير
-            // من "البند الرئيسي" إلى قيم "تصنيف البند" الموازية له بـ Book112.xlsx.
+            // من "البند الرئيسي" إلى قيم "تصنيف البند" الموازية له بـ Book112.xlsx (BaladiyahMainItemToClassifications أدناه).
             // ==================================================================
-            var mainItemToClassifications = new Dictionary<string, string[]>
-            {
-                ["إيرادات استثمارات العقارات البلدية"] = new[] { "استثمار", "تأجير مؤقت" },
-                ["إيرادات الرسوم والمقابلات المالية"] = new[] { "رسوم" },
-                ["إيرادات رسم إشغال مرافق الإيواء"] = new[] { "رسوم المبيعات-الايواء" },
-                ["إيرادات الجزاءات والغرمات"] = new[] { "جزاءات" },
-                ["إيرادات رسوم تقديم منتجات التبغ"] = new[] { "رسوم المبيعات-التبغ" },
-                ["الإيرادات المختلفة"] = new[] { "إيرادات مختلفة" },
-            };
-
             var annualTargetByMainItem = monthlyRows
                 .Where(t => !string.IsNullOrWhiteSpace(t.MainItem))
                 .GroupBy(t => t.MainItem!)
                 .ToDictionary(g => g.Key, g => g.Sum(t => t.M1 + t.M2 + t.M3 + t.M4 + t.M5 + t.M6 + t.M7 + t.M8 + t.M9 + t.M10 + t.M11 + t.M12));
 
-            result.ItemsMainAnnual = mainItemToClassifications.Select(kv =>
+            result.ItemsMainAnnual = BaladiyahMainItemToClassifications.Select(kv =>
             {
                 var annual = annualTargetByMainItem.TryGetValue(kv.Key, out var a) ? a : 0;
                 var invoiced = records.Where(r => !string.IsNullOrWhiteSpace(r.Classification) && kv.Value.Contains(r.Classification!.Trim()))
@@ -1398,18 +1747,45 @@ namespace ExcelDashboard.Services
             ["الإيرادات المختلفة"] = new[] { "إيرادات مختلفة" },
         };
 
+        // خريطة "البند الرئيسي" كما بملف "المستهدف الشهري" للبلديات (Book112.xlsx) ← قيم
+        // "تصنيف البند" الموازية له - نفس فكرة الخريطة أعلاه لكن بصياغة عربية مختلفة قليلاً
+        // (مصدر بيانات مختلف). مُستخدَمة بـ GetTargetsComparisonDataAsync (ItemsMainAnnual)
+        // وبـ BuildResult (RevenueTypePerformance - مصدر مستهدف "البلديات")
+        private static readonly Dictionary<string, string[]> BaladiyahMainItemToClassifications = new()
+        {
+            ["إيرادات استثمارات العقارات البلدية"] = new[] { "استثمار", "تأجير مؤقت" },
+            ["إيرادات الرسوم والمقابلات المالية"] = new[] { "رسوم" },
+            ["إيرادات رسم إشغال مرافق الإيواء"] = new[] { "رسوم المبيعات-الايواء" },
+            ["إيرادات الجزاءات والغرمات"] = new[] { "جزاءات" },
+            ["إيرادات رسوم تقديم منتجات التبغ"] = new[] { "رسوم المبيعات-التبغ" },
+            ["الإيرادات المختلفة"] = new[] { "إيرادات مختلفة" },
+        };
+
         public async Task<FinanceTargetsPageData> GetFinanceTargetsPageDataAsync()
         {
-            var targetRows = await _db.FinanceItemTargets.ToListAsync();
+            var targetRows = await _db.FinanceItemTargets.AsNoTracking()
+                .Where(t => t.TargetSource == "Finance")
+                .ToListAsync();
             var result = new FinanceTargetsPageData { HasData = targetRows.Count > 0 };
             if (!result.HasData) return result;
 
-            var records = await _db.DashboardRecords
-                .Select(r => new { r.Entity, r.Classification, r.CollectedValue })
+            var records = await _db.DashboardRecords.AsNoTracking()
+                .Select(r => new { r.Entity, r.Classification, r.CollectedValue, r.Quarter })
                 .ToListAsync();
 
             var amanahRecords = records.Where(r => IsAmanah(r.Entity)).ToList();
             var baladiyahRecords = records.Where(r => !IsAmanah(r.Entity)).ToList();
+
+            List<decimal> QuarterlyCollected(IEnumerable<(string? Quarter, decimal? CollectedValue)> recs)
+            {
+                var byQuarter = recs
+                    .Where(r => !string.IsNullOrWhiteSpace(r.Quarter))
+                    .GroupBy(r => r.Quarter!.Trim().ToUpperInvariant())
+                    .ToDictionary(g => g.Key, g => g.Sum(x => x.CollectedValue ?? 0));
+                return new[] { "Q1", "Q2", "Q3", "Q4" }
+                    .Select(q => byQuarter.TryGetValue(q, out var v) ? v : 0m)
+                    .ToList();
+            }
 
             var amanahTargetByMainItem = targetRows.Where(t => t.Scope == "Amanah")
                 .GroupBy(t => t.MainItem).ToDictionary(g => g.Key, g => g.Sum(t => t.AnnualTarget));
@@ -1452,15 +1828,22 @@ namespace ExcelDashboard.Services
             result.BaladiyahAchievementPercent = result.BaladiyahTargetTotal > 0
                 ? Math.Round(result.BaladiyahCollectedTotal / result.BaladiyahTargetTotal * 100, 1) : 0;
 
+            result.AmanahQuarterlyCollected = QuarterlyCollected(amanahRecords.Select(r => (r.Quarter, r.CollectedValue)));
+            result.BaladiyahQuarterlyCollected = QuarterlyCollected(baladiyahRecords.Select(r => (r.Quarter, r.CollectedValue)));
+
             return result;
         }
 
         // حالة العقد التي تعني "مبرومة" بلغة صفحة الطرح
         private const string FinalizedStatus = "تم إبرام العقد";
 
+        // حالة العقد التي تعني "ملغاة" بلغة صفحة الطرح (تشمل عمليًا "لم يتقدم أحد" أيضًا -
+        // تُدمَج بهذه الحالة عند الاستيراد، انظر ContractImportService.MergedIntoCancelled)
+        private const string CancelledStatus = "إلغاء المنافسة";
+
         public async Task<TarhPageData> GetTarhDataAsync(string? department, string? status, string? contractNumber, int? year, int? quarter)
         {
-            var all = await _db.ContractRecords.ToListAsync();
+            var all = await _db.ContractRecords.AsNoTracking().ToListAsync();
             var result = new TarhPageData { HasData = all.Count > 0 };
             if (!result.HasData) return result;
 
@@ -1475,7 +1858,10 @@ namespace ExcelDashboard.Services
             // واحدة بلا خط يصل بينها)، لذا يبقى معروضًا لكل السنوات مهما كانت السنة المختارة
             var yearlyTrendBase = TarhFilter(all, department, null, contractNumber, null, quarter);
 
-            result.TotalOpportunities = filtered
+            // "إجمالي عدد الفرص" (كرت KPI الأول): إجمالي ثابت دائمًا (بلا أي تأثير لفلاتر الصفحة
+            // - سنة/ربع/بحث) بطلب صريح من المستخدمة، لأنها تتحقق منه بعدّ عمود "رقم الفرصة"
+            // كاملاً بإكسل مباشرة بلا أي فلترة
+            result.TotalOpportunities = all
                 .Select(r => r.OpportunityNumber)
                 .Where(o => !string.IsNullOrWhiteSpace(o))
                 .Distinct()
@@ -1490,10 +1876,20 @@ namespace ExcelDashboard.Services
             string DedupKey(ContractRecord r) => !string.IsNullOrWhiteSpace(r.ContractNumber) ? r.ContractNumber! : "row-" + r.Id;
             int DistinctCount(IEnumerable<ContractRecord> recs) => recs.Select(DedupKey).Distinct().Count();
 
-            result.TypeSummary = filtered
+            // قيمة وعدد العقود المبرومة حسب الإدارة العامة (رسم 1) والمحفظة الفرعية ضمن كل إدارة
+            // (رسم 2)، وكروت أنواع العقود (استثمار/الأبراج/تأجير مباشر/الممرات) - عقود مبرومة
+            // فقط ("رقم العقد"/"سنة العقد" لا تتوفر إلا لهذه الحالة أصلاً)، وبسنة 2026 دائمًا
+            // (مقفولة، بصرف النظر عن فلتر السنة المختار بأعلى الصفحة) بطلب المستخدمة - فلتر
+            // الربع يبقى يؤثر عليها كالمعتاد
+            var deptBase = TarhFilter(all, null, FinalizedStatus, contractNumber, 2026, quarter);
+
+            // كروت أنواع العقود: القيمة = "الأجرة السنوية" حصرًا (بلا أي احتمال للرجوع لـ"قيمة
+            // العقد") - بطلب صريح من المستخدمة، بعد ما وضّحت طريقتها بإكسل: تفلتر نوع العقد ثم
+            // الحالة "تم إبرام العقد" ثم السنة 2026 ثم تجمع عمود "الأجرة السنوية" حرفيًا
+            result.TypeSummary = deptBase
                 .Where(r => !string.IsNullOrWhiteSpace(r.ContractType))
                 .GroupBy(r => r.ContractType!)
-                .Select(g => new TarhTypeSummaryRow { TypeLabel = g.Key, Count = DistinctCount(g), TotalValue = g.Sum(EffectiveValue) })
+                .Select(g => new TarhTypeSummaryRow { TypeLabel = g.Key, Count = DistinctCount(g), TotalValue = g.Sum(r => r.AnnualRent ?? 0) })
                 .OrderByDescending(x => x.Count)
                 .ToList();
 
@@ -1502,49 +1898,62 @@ namespace ExcelDashboard.Services
             result.FinalizedPercent = result.TotalCount > 0
                 ? Math.Round((decimal)result.FinalizedCount / result.TotalCount * 100, 1) : 0;
 
-            // قيمة وعدد العقود المبرومة حسب الإدارة العامة (رسم 1) والمحفظة الفرعية ضمن كل إدارة
-            // (رسم 2) - عقود مبرومة فقط ("رقم العقد"/"سنة العقد" لا تتوفر إلا لهذه الحالة أصلاً)،
-            // تحترم فلترَي السنة والربع بالصفحة فقط (لا يوجد فلترا إدارة/حالة بالواجهة بعد الآن)
-            var deptBase = TarhFilter(all, null, FinalizedStatus, contractNumber, year, quarter);
+            // رسما 1+2 (توزيع الإدارات العامة/الفرعية): عدد وقيمة "الفرص" (لا العقود) التي فُتحت
+            // مظاريفها (=طُرحت) بسنة 2026 بالضبط - بلا قيد الحالة "تم إبرام العقد" (فرصة لسه
+            // بالإجراءات أو حتى ملغاة تُحسَب أيضًا، طالما طُرحت بـ2026) - بطلب صريح من المستخدمة
+            // بعد ما وضّحت إنها تقصد "الفرص اللي انطرحت بعام 2026" لا "العقود المبرومة بعام 2026"
+            // (deptBase أعلاه يبقى كما هو، يُستخدم فقط لكروت أنواع العقود ونسبة الإبرام)
+            var tenderedDeptBase = all.Where(r => r.EnvelopeOpeningDate.HasValue && r.EnvelopeOpeningDate.Value.Year == 2026);
+            if (quarter.HasValue) tenderedDeptBase = tenderedDeptBase.Where(r => r.Quarter == quarter);
+            if (!string.IsNullOrWhiteSpace(contractNumber))
+                tenderedDeptBase = tenderedDeptBase.Where(r => (r.OpportunityNumber ?? "").Contains(contractNumber, StringComparison.OrdinalIgnoreCase));
+            var tenderedDeptBaseList = tenderedDeptBase.ToList();
 
-            result.DeptSummary = deptBase
+            int DistinctOpportunityCount(IEnumerable<ContractRecord> recs) =>
+                recs.Select(r => r.OpportunityNumber).Where(o => !string.IsNullOrWhiteSpace(o)).Distinct().Count();
+
+            result.DeptSummary = tenderedDeptBaseList
                 .Where(r => !string.IsNullOrWhiteSpace(r.GeneralDepartment))
                 .GroupBy(r => r.GeneralDepartment!)
-                .Select(g => new TarhDeptSummaryRow { DepartmentLabel = g.Key, Count = DistinctCount(g), TotalValue = g.Sum(EffectiveValue) })
+                .Select(g => new TarhDeptSummaryRow { DepartmentLabel = g.Key, Count = DistinctOpportunityCount(g), TotalValue = g.Sum(EffectiveValue) })
                 .OrderByDescending(x => x.TotalValue)
                 .ToList();
 
-            result.FinalizedByPortfolio = deptBase
+            result.FinalizedByPortfolio = tenderedDeptBaseList
                 .Where(r => !string.IsNullOrWhiteSpace(r.GeneralDepartment) && !string.IsNullOrWhiteSpace(r.SubPortfolio))
                 .GroupBy(r => new { r.GeneralDepartment, r.SubPortfolio })
                 .Select(g => new TarhFinalizedByPortfolioRow
                 {
                     DepartmentLabel = g.Key.GeneralDepartment!, PortfolioLabel = g.Key.SubPortfolio!,
-                    Count = DistinctCount(g), TotalValue = g.Sum(EffectiveValue)
+                    Count = DistinctOpportunityCount(g), TotalValue = g.Sum(EffectiveValue)
                 })
                 .OrderBy(x => x.DepartmentLabel).ThenByDescending(x => x.TotalValue)
                 .ToList();
 
-            // نسبتا الطرح والإبرام التراكميتان حسب السنة (رسم 3) - اتجاه زمني شامل بلا أي فلاتر.
-            // المرجع (100%) = إجمالي عدد الفرص التي فُتحت مظاريفها (=طُرحت) عبر كل السنوات؛ نسبة
-            // الإبرام تُحسَب من نفس المرجع (لا من إجمالي العقود المبرومة وحدها) حتى تكون النسبتان
-            // قابلتين للمقارنة المباشرة على نفس المقياس (كم من إجمالي المطروح تم إبرامه فعليًا)
+            // نسب الطرح والإبرام والإلغاء التراكمية حسب السنة (رسم 3) - اتجاه زمني شامل بلا أي فلاتر.
+            // المرجع (100%) = إجمالي عدد الفرص التي فُتحت مظاريفها (=طُرحت) عبر كل السنوات؛ نسبتا
+            // الإبرام والإلغاء تُحسَبان من نفس المرجع (لا من إجمالياتهما الخاصة) حتى تبقى النسب الثلاث
+            // قابلة للمقارنة المباشرة على نفس المقياس (كم من إجمالي المطروح آل لكل مصير).
+            // نسبة الإلغاء تُبنى بتاريخ فتح المظاريف (لا سنة العقد، لأن الفرصة الملغاة أصلًا لم يُبرَم
+            // لها عقد) وتشمل حالة "إلغاء المنافسة" فقط، التي تُدمَج بها "لم يتقدم أحد" عند الاستيراد
             var tenderedRows = all.Where(r => r.EnvelopeOpeningDate.HasValue).ToList();
             var totalTendered = DistinctCount(tenderedRows);
             var rateYears = tenderedRows.Select(r => r.EnvelopeOpeningDate!.Value.Year)
                 .Union(all.Where(r => r.Status == FinalizedStatus && r.ContractYear.HasValue).Select(r => r.ContractYear!.Value))
                 .Distinct().OrderBy(y => y).ToList();
 
-            decimal cumTendered = 0, cumFinalized = 0;
+            decimal cumTendered = 0, cumFinalized = 0, cumCancelled = 0;
             result.YearlyRates = rateYears.Select(y =>
             {
                 cumTendered += DistinctCount(tenderedRows.Where(r => r.EnvelopeOpeningDate!.Value.Year == y));
                 cumFinalized += DistinctCount(all.Where(r => r.Status == FinalizedStatus && r.ContractYear == y));
+                cumCancelled += DistinctCount(tenderedRows.Where(r => r.Status == CancelledStatus && r.EnvelopeOpeningDate!.Value.Year == y));
                 return new TarhYearlyRateRow
                 {
                     Year = y,
                     TenderedPercent = totalTendered > 0 ? Math.Round(cumTendered / totalTendered * 100, 1) : 0,
-                    FinalizedPercent = totalTendered > 0 ? Math.Round(cumFinalized / totalTendered * 100, 1) : 0
+                    FinalizedPercent = totalTendered > 0 ? Math.Round(cumFinalized / totalTendered * 100, 1) : 0,
+                    CancelledPercent = totalTendered > 0 ? Math.Round(cumCancelled / totalTendered * 100, 1) : 0
                 };
             }).ToList();
 
@@ -1567,27 +1976,22 @@ namespace ExcelDashboard.Services
                 .OrderBy(x => x.Year).ThenBy(x => x.Status)
                 .ToList();
 
-            // حالة مدة الفرص: فقط الفرص اللي حالتها من "الحالات قيد الإجراء" الأربع (لم تُبرَم
-            // ولم تُلغَ بعد)، وبسنة 2026 فقط (بتاريخ فتح المظاريف)، والمدة = من تاريخ فتح
-            // المظاريف إلى تاريخ اليوم (لأنها لم تصل لمرحلة توقيع عقد بعد فلا يوجد تاريخ عقد أصلاً)
-            var todayForDuration = DateTime.UtcNow.Date;
-            var durationBase = TarhFilter(all, department, null, contractNumber, null, null);
-            var durationRows = durationBase
-                .Where(r => r.Status != null && TarhPendingStatuses.Contains(r.Status) &&
-                            r.EnvelopeOpeningDate.HasValue && r.EnvelopeOpeningDate.Value.Year == 2026)
-                .Select(r => (int)(todayForDuration - r.EnvelopeOpeningDate!.Value.Date).TotalDays)
-                .ToList();
-            var withinCount = durationRows.Count(d => d <= 40);
-            var overCount = durationRows.Count(d => d > 40);
-            var durationTotal = withinCount + overCount;
+            // "تحت إجراءات الترسية": عدد الفرص بإحدى الحالات الثلاث قيد الإجراء، من إجمالي الفرص
+            // التي فُتحت مظاريفها (=طُرحت) - النسبة = عدد الفرص بهذي الحالات ÷ إجمالي فتح
+            // المظاريف × 100 (بطلب صريح من المستخدمة، بدل حساب مدة الفرص باليوم سابقًا)
+            var pendingBase = TarhFilter(all, department, null, contractNumber, null, null);
+            var pendingTenderedTotal = DistinctCount(pendingBase.Where(r => r.EnvelopeOpeningDate.HasValue));
+            var pendingRows = pendingBase.Where(r => r.Status != null && TarhPendingStatuses.Contains(r.Status)).ToList();
+            var pendingCount = DistinctCount(pendingRows);
             result.DurationStatus = new TarhDurationStatus
             {
-                TotalCount = durationTotal,
-                WithinCount = withinCount,
-                OverCount = overCount,
-                WithinPercent = durationTotal > 0 ? Math.Round((decimal)withinCount / durationTotal * 100, 1) : 0,
-                OverPercent = durationTotal > 0 ? Math.Round((decimal)overCount / durationTotal * 100, 1) : 0,
-                AverageDays = durationRows.Count > 0 ? Math.Round(durationRows.Average(), 1) : 0
+                TotalCount = pendingTenderedTotal,
+                PendingCount = pendingCount,
+                PendingPercent = pendingTenderedTotal > 0 ? Math.Round((decimal)pendingCount / pendingTenderedTotal * 100, 1) : 0,
+                StatusBreakdown = TarhPendingStatuses
+                    .Select(s => new TarhStatusCountRow { Status = s, Count = DistinctCount(pendingRows.Where(r => r.Status == s)) })
+                    .OrderByDescending(x => x.Count)
+                    .ToList()
             };
 
             return result;
@@ -1598,7 +2002,7 @@ namespace ExcelDashboard.Services
         /// الزر تتبع نفس الفرص المعروضة بتلك الرسمة وليس كل الفرص بصرف النظر عن حالتها</summary>
         public async Task<List<TarhOpportunityOption>> GetTarhOpportunityOptionsAsync()
         {
-            var all = await _db.ContractRecords.ToListAsync();
+            var all = await _db.ContractRecords.AsNoTracking().ToListAsync();
             var today = DateTime.UtcNow.Date;
             return all
                 .Where(r => !string.IsNullOrWhiteSpace(r.OpportunityNumber) && r.Status != null &&
@@ -1607,7 +2011,7 @@ namespace ExcelDashboard.Services
                 .Select(r =>
                 {
                     var days = (today - r.EnvelopeOpeningDate!.Value.Date).TotalDays;
-                    var durationStatus = days <= 40 ? "ضمن 40 يوم" : "تجاوزت 40 يوم";
+                    var durationStatus = days <= 30 ? "ضمن 30 يوم" : "تجاوزت 30 يوم";
                     return new TarhOpportunityOption { OpportunityNumber = r.OpportunityNumber!, OpportunityName = r.OpportunityName, DurationStatus = durationStatus };
                 })
                 .OrderBy(x => x.OpportunityNumber)
@@ -1618,7 +2022,7 @@ namespace ExcelDashboard.Services
         /// "تتبع الفرصة" كلها قيد الإجراء (بلا رقم عقد بعد) فلا نشترط وجوده هنا</summary>
         public async Task<TarhOpportunityTimeline> GetTarhOpportunityTimelineAsync(string opportunityNumber)
         {
-            var record = await _db.ContractRecords.FirstOrDefaultAsync(r => r.OpportunityNumber == opportunityNumber);
+            var record = await _db.ContractRecords.AsNoTracking().FirstOrDefaultAsync(r => r.OpportunityNumber == opportunityNumber);
             if (record == null)
                 return new TarhOpportunityTimeline { Found = false };
 
@@ -1649,26 +2053,30 @@ namespace ExcelDashboard.Services
                 if (endDate.HasValue)
                 {
                     timeline.TotalDays = (int)(endDate.Value.Date - record.EnvelopeOpeningDate.Value.Date).TotalDays;
-                    timeline.DurationStatus = timeline.TotalDays <= 40 ? "ضمن 40 يوم" : "تجاوزت 40 يوم";
+                    timeline.DurationStatus = timeline.TotalDays <= 30 ? "ضمن 30 يوم" : "تجاوزت 30 يوم";
                 }
             }
 
             return timeline;
         }
 
-        // الحالات الأربع اللي تُعتبر "قيد الإجراء" (لم تُبرَم ولم تُلغَ بعد) - نطاق مشترك بين رسمة
-        // "حالة مدة الفرص قيد الإجراء" وقائمة/رحلة "تتبع الفرصة" حتى يبقى المعروض بالثلاثة متطابقًا
+        // الحالات الثلاث اللي تُعتبر "تحت إجراءات الترسية" - نطاق مشترك بين رسمة حالة مدة الفرص
+        // وقائمة/رحلة "تتبع الفرصة" حتى يبقى المعروض بالاثنين متطابقًا. "تم فتح المظاريف" أُزيلت
+        // بطلب صريح من المستخدمة - هي مرحلة سابقة لإجراءات الترسية نفسها، لا تُحسَب ضمنها
         private static readonly HashSet<string> TarhPendingStatuses = new()
-            { "بإنتظار إعتماد العقد", "بإنتظار دفع الفاتورة", "تحت إجراءات الترسية", "تم فتح المظاريف" };
+            { "بإنتظار إعتماد العقد", "بإنتظار دفع الفاتورة", "تحت إجراءات الترسية" };
 
         // فلترة موحّدة لعقود صفحة "الطرح" حسب الإدارة العامة/الحالة/رقم العقد/السنة/الربع - يُستخدم
         // بكل من GetTarhDataAsync وGetTarhExportRowsAsync حتى تبقى نفس نتائج الصفحة والتصدير متطابقة
+        // ملاحظة: الباراميتر اسمه "contractNumber" تاريخيًا (بكل الاستدعاءات/الـ endpoints) لكن
+        // المطابقة الفعلية صارت على "رقم الفرصة" (OpportunityNumber) بدل رقم العقد، بطلب
+        // المستخدمة - أبقينا الاسم لتقليل رقعة التعديل بكل نقاط الاستدعاء
         private static List<ContractRecord> TarhFilter(
             IEnumerable<ContractRecord> source, string? department, string? status, string? contractNumber, int? year, int? quarter) =>
             source.Where(r =>
                 (string.IsNullOrWhiteSpace(department) || r.GeneralDepartment == department) &&
                 (string.IsNullOrWhiteSpace(status) || r.Status == status) &&
-                (string.IsNullOrWhiteSpace(contractNumber) || (r.ContractNumber ?? "").Contains(contractNumber, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrWhiteSpace(contractNumber) || (r.OpportunityNumber ?? "").Contains(contractNumber, StringComparison.OrdinalIgnoreCase)) &&
                 (!year.HasValue || r.ContractYear == year) &&
                 (!quarter.HasValue || r.Quarter == quarter))
             .ToList();
@@ -1676,7 +2084,7 @@ namespace ExcelDashboard.Services
         /// <summary>صفوف تصدير صفحة "الطرح" (Excel/PDF) - نفس تصفية GetTarhDataAsync بالضبط</summary>
         public async Task<List<TarhExportRow>> GetTarhExportRowsAsync(string? department, string? status, string? contractNumber, int? year, int? quarter)
         {
-            var all = await _db.ContractRecords.ToListAsync();
+            var all = await _db.ContractRecords.AsNoTracking().ToListAsync();
             return TarhFilter(all, department, status, contractNumber, year, quarter)
                 .OrderBy(r => r.OpportunityNumber)
                 .Select(r => new TarhExportRow

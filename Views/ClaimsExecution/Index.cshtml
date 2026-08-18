@@ -1,0 +1,105 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "المديونيات والمطالبات";
+    ViewData["FullWidth"] = "1";
+    ViewData["HasSidebar"] = "1";
+}
+
+<div class="dashboard-layout home-shell">
+    <aside class="sidebar-nav scope-nav">
+        <div class="sidebar-nav-title">
+            <span>لوحة التنقّل</span>
+            <button class="nav-close" id="navClose" type="button" aria-label="إغلاق القائمة"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="sidebar-scroll">
+            <partial name="_PageNavSidebar" />
+        </div>
+    </aside>
+
+    <section class="dashboard-content">
+        <div class="nav-bar-row">
+            <a href="@Url.Action("Index", "Home")" class="back-btn"
+               onclick="if(document.referrer && document.referrer.indexOf(location.origin)===0){history.back();return false;}">
+                @Icons.Svg("back", "btn-svg") <span>رجوع</span>
+            </a>
+            <div class="breadcrumb-bar">
+                <a href="@Url.Action("Index", "Home")">الرئيسية</a>
+                <span>/</span>
+                <span>المديونيات والمطالبات</span>
+            </div>
+        </div>
+
+        <div class="dash-header-row">
+            <div class="dash-header-info">
+                <div class="dash-icon-badge">@Icons.Svg("report", "")</div>
+                <div>
+                    <div class="page-title" style="margin-bottom:0;">المديونيات والمطالبات</div>
+                    <div class="page-subtitle" style="margin-bottom:0;">توزيع المطالبات حسب حالة المطالبة والإدارة العامة والمحفظة</div>
+                </div>
+            </div>
+            <div class="contract-actions read-only-hide" style="margin-bottom:0;">
+                <button type="button" class="contract-action-btn" id="clxExportExcelBtn">
+                    @Icons.Svg("excel", "") <span>تصدير Excel</span>
+                </button>
+                <button type="button" class="contract-action-btn" id="clxExportPdfBtn">
+                    @Icons.Svg("pdf", "") <span>طباعة PDF</span>
+                </button>
+                <div class="tc-upload-wrap">
+                    <input type="file" id="clxUploadInput" accept=".xlsx" hidden />
+                    <button type="button" id="clxUploadBtn" class="tc-upload-btn">
+                        <i class="bi bi-upload"></i>
+                        <span>رفع ملف المطالبات</span>
+                    </button>
+                    <span id="clxUploadStatus" class="tc-upload-status"></span>
+                </div>
+            </div>
+        </div>
+
+        <div id="clxFilterBar" class="dash-filter-bar" style="margin-bottom:14px;"></div>
+
+        <div id="clxContent">
+            <div class="tarh-kpi-grid" id="clxKpiGrid"></div>
+
+            <div class="charts-grid-3" id="clxChartsRow1" style="margin-bottom:18px;"></div>
+            <div class="charts-grid-3" id="clxChartsRow2"></div>
+        </div>
+
+        <div class="no-data-box" id="clxNoDataBox" style="display:none;">
+            <span class="nd-icon">@Icons.Svg("inbox", "")</span>
+            لا توجد بيانات مطالبات مستوردة بعد. اضغط "رفع ملف المطالبات" أعلى الصفحة للبدء.
+        </div>
+
+        <!-- رأس خاص بالطباعة فقط (مخفي على الشاشة) -->
+        <div class="contract-print-header">
+            <div class="contract-print-logo-row">
+                <img src="~/images/logo.png" alt="شعار الأمانة" class="contract-print-logo-img" />
+            </div>
+            <div class="contract-print-title">تقرير المديونيات والمطالبات</div>
+            <div class="contract-print-date">تاريخ الطباعة: <span id="clxPrintDate"></span></div>
+        </div>
+
+        <!-- جدول التصدير: مخفي على الشاشة، يظهر عند الطباعة فقط -->
+        <div class="contract-table-wrap tarh-export-table-wrap" id="clxExportTableWrap">
+            <table class="contract-table with-number">
+                <thead>
+                    <tr>
+                        <th>رقم العقد</th><th>اسم المستثمر</th><th>رقم الفاتورة</th><th>حالة المطالبة</th>
+                        <th>الإدارة العامة</th><th>المحفظة</th><th>القيمة</th><th>تاريخ استحقاق الدفعة</th>
+                    </tr>
+                </thead>
+                <tbody id="clxExportTableBody"></tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script>
+        window.CLX_DATA_URL = "@Url.Action("Data", "ClaimsExecution")";
+        window.CLX_UPLOAD_URL = "@Url.Action("Upload", "ClaimsExecution")";
+        window.CLX_EXPORT_DATA_URL = "@Url.Action("ExportData", "ClaimsExecution")";
+        window.CLX_EXPORT_EXCEL_URL = "@Url.Action("ExportExcel", "ClaimsExecution")";
+    </script>
+    <script src="~/js/claims-execution-board.js" asp-append-version="true"></script>
+}

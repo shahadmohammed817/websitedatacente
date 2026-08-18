@@ -34,14 +34,44 @@
                 <div class="dash-icon-badge">@Icons.Svg("contract", "")</div>
                 <div>
                     <div class="page-title" style="margin-bottom:0;">العقود التي تنتهي فترة سماحها خلال 3 أشهر</div>
-                    <div class="page-subtitle" style="margin-bottom:0;">قائمة العقود التي تقترب مدة سماحها من الانتهاء</div>
+                    <div class="page-subtitle" style="margin-bottom:0;">توزيع العقود حسب النوع والإدارة وحالة فترة التجهيز</div>
                 </div>
+            </div>
+            <div class="tc-upload-wrap read-only-hide">
+                <input type="file" id="cgpUploadInput" accept=".xlsx" hidden />
+                <button type="button" id="cgpUploadBtn" class="tc-upload-btn">
+                    <i class="bi bi-upload"></i>
+                    <span>رفع ملف العقود</span>
+                </button>
+                <span id="cgpUploadStatus" class="tc-upload-status"></span>
             </div>
         </div>
 
-        <div class="no-data-box">
+        <div id="cgpFilterBar" class="dash-filter-bar" style="margin-bottom:14px;"></div>
+
+        <div id="cgpContent">
+            <div class="tarh-kpi-grid" id="cgpKpiGrid"></div>
+
+            <div class="charts-grid-3" id="cgpChartsRow2" style="margin-bottom:18px;"></div>
+            <div class="charts-grid-3 tarh-duration-row" id="cgpChartsRow3" style="margin-bottom:18px;"></div>
+            <div class="charts-grid-3 tarh-duration-row" id="cgpChartsRow4" style="margin-bottom:18px;"></div>
+            <div class="charts-grid-3 tc-row-single" id="cgpChartsRow5"></div>
+        </div>
+
+        <div class="no-data-box" id="cgpNoDataBox" style="display:none;">
             <span class="nd-icon">@Icons.Svg("inbox", "")</span>
-            لا توجد بيانات بعد بهذه الصفحة.
+            لا توجد بيانات عقود مستوردة بعد. اضغط "رفع ملف العقود" أعلى الصفحة للبدء.
         </div>
     </section>
 </div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script>
+        window.CGP_DATA_URL = "@Url.Action("GracePeriodExpiringData", "Claims")";
+        window.CGP_UPLOAD_URL = "@Url.Action("GracePeriodExpiringUpload", "Claims")";
+        window.CGP_CONTRACT_ENDING_URL = "@Url.Action("GracePeriodContractEndingList", "Claims")";
+        window.CGP_PREP_ENDING_URL = "@Url.Action("GracePeriodPrepEndingList", "Claims")";
+    </script>
+    <script src="~/js/contracts-grace-period.js" asp-append-version="true"></script>
+}

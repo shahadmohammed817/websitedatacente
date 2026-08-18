@@ -45,11 +45,18 @@ function formatNum(n) {
     return Math.round(n).toLocaleString("en-US");
 }
 
+// نفس formatNum لكن بلا أي تقريب (منزلتان عشريتان كاملتان) - تُستخدم فقط لكروت الـKPI الرئيسية
+// (إجمالي/محصّل/غير محصّل) حتى تطابق الرقم بالضبط لما تُجمَع القيم مباشرة بإكسل، بناءً على طلب صريح
+function formatNumExact(n) {
+    if (!Number.isFinite(n)) return "0.00";
+    return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// كانت تختصر الأرقام الكبيرة (150.3M بدل 150,286,045) لتوفير مساحة داخل الرسوم - بناءً على
+// طلب المستخدمة تعرض الأرقام كاملة بلا أي اختصار أو تقريب بكل مكان بالموقع، فصارت تُطابق
+// formatNum تمامًا (الاسم أُبقي كما هو لتفادي تعديل كل نقطة استدعاء بكل الملفات المشتركة)
 function formatCompact(n) {
-    if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(1) + "B";
-    if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + "M";
-    if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1) + "K";
-    return n.toFixed(0);
+    return formatNum(n);
 }
 
 /* أيقونات Bootstrap Icons الرسمية (بديلة للإيموجيات) */
@@ -71,6 +78,14 @@ const QUARTER_OPTIONS = [
     { value: "Q2", label: "الربع الثاني (Q2)" },
     { value: "Q3", label: "الربع الثالث (Q3)" },
     { value: "Q4", label: "الربع الرابع (Q4)" }
+];
+
+const MONTH_OPTIONS = [
+    { value: "", label: "كل الأشهر" },
+    { value: "1", label: "يناير" }, { value: "2", label: "فبراير" }, { value: "3", label: "مارس" },
+    { value: "4", label: "أبريل" }, { value: "5", label: "مايو" }, { value: "6", label: "يونيو" },
+    { value: "7", label: "يوليو" }, { value: "8", label: "أغسطس" }, { value: "9", label: "سبتمبر" },
+    { value: "10", label: "أكتوبر" }, { value: "11", label: "نوفمبر" }, { value: "12", label: "ديسمبر" }
 ];
 
 let currentBaseUrl = null;   // آخر رابط لوحة تم فتحه (بدون معاملات تصفية) — يُستخدم لإعادة البناء عند تغيير الفلاتر
@@ -267,17 +282,49 @@ function buildFilterBar() {
     bar.appendChild(quarterSel.wrap);
     quarterSel.select.addEventListener("change", applyDashboardFilters);
 
+    const monthSel = makeSelectWrap("filterMonth", "bi-calendar-event");
+    MONTH_OPTIONS.forEach(function (opt) {
+        const o = document.createElement("option");
+        o.value = opt.value;
+        o.textContent = opt.label;
+        monthSel.select.appendChild(o);
+    });
+    bar.appendChild(monthSel.wrap);
+    monthSel.select.addEventListener("change", applyDashboardFilters);
+
+    // مسح الفلاتر: يعيد رقم العقد/الربع/الشهر (ونوع الاستثمار بصفحة بنود الأمانة إن وُجد) لحالتها
+    // الافتراضية بلا التأثير على النطاق نفسه (الإدارة/البلدية المختارة) - نفس الصفحة تبقى مفتوحة
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "filter-clear-btn";
+    clearBtn.innerHTML = '<i class="bi bi-x-circle"></i> مسح الفلاتر';
+    clearBtn.addEventListener("click", function () {
+        if (search.input) search.input.value = "";
+        if (quarterSel.select) quarterSel.select.value = "";
+        if (monthSel.select) monthSel.select.value = "";
+        const investmentTypeSel = document.getElementById("filterInvestmentType");
+        if (investmentTypeSel) {
+            investmentTypeSel.value = "";
+            if (typeof aiInvestmentTypeFilter !== "undefined") aiInvestmentTypeFilter = "";
+        }
+        applyDashboardFilters();
+    });
+    bar.appendChild(clearBtn);
+
     headerRow.appendChild(bar);
 }
 
 function currentFilterParams() {
     const contractEl = document.getElementById("filterContractNumber");
     const quarterEl = document.getElementById("filterQuarter");
+    const monthEl = document.getElementById("filterMonth");
     const params = new URLSearchParams();
     const contract = contractEl ? contractEl.value.trim() : "";
     const quarter = quarterEl ? quarterEl.value : "";
+    const month = monthEl ? monthEl.value : "";
     if (contract) params.set("contract", contract);
     if (quarter) params.set("quarter", quarter);
+    if (month) params.set("month", month);
     return params;
 }
 
@@ -369,8 +416,7 @@ let chartRegistry = [];
 
 // حالة اللوحة الحالية + التصفية التفاعلية (Cross-Filter بأسلوب Power BI)
 let activeDashboardData = null;
-let activeCategoryIndex = null;
-let charts = { bar: null, line: null, subItemsBar: null, gauge: null, entityBar: null, topItems: null, quarter: null };
+let charts = { line: null, subItemsBar: null, entityBar: null, topItems: null, quarter: null };
 
 /* ==========================================================================
    تفريغ/تدمير كل الرسوم الحالية استعدادًا لتحميل لوحة جديدة (تفاعل القائمة الجانبية)
@@ -378,17 +424,17 @@ let charts = { bar: null, line: null, subItemsBar: null, gauge: null, entityBar:
 function disposeCharts() {
     chartRegistry.forEach(function (c) { try { c.dispose(); } catch (e) {} });
     chartRegistry = [];
-    charts = { bar: null, line: null, subItemsBar: null, gauge: null, entityBar: null, topItems: null, quarter: null };
+    charts = { line: null, subItemsBar: null, entityBar: null, topItems: null, quarter: null };
     activeDashboardData = null;
-    activeCategoryIndex = null;
 }
 
 function clearContainers() {
-    ["kpiGrid", "chartsRow1", "chartsRow2", "chartsRow3"].forEach(function (id) {
+    ["kpiGrid", "chartsRow1", "chartsRow2", "chartsRowDonuts", "chartsRowInsights", "chartsRow3"].forEach(function (id) {
         const el = document.getElementById(id);
         if (el) el.innerHTML = "";
     });
     removeFilterBanner();
+    if (typeof removeRevenuePerfSection === "function") removeRevenuePerfSection();
 }
 
 function toggleNoData(show) {
@@ -433,9 +479,10 @@ async function loadDashboard(url, meta, isBaseNavigation) {
 
         toggleNoData(false);
         activeDashboardData = data;
-        activeCategoryIndex = null;
 
         renderKPIs(data);
+        // قسم "أداء الإيرادات حسب نوع الإيراد" - يُدرَج مباشرة بعد بطاقات الـKPI وقبل بقية الرسوم
+        if (typeof renderRevenuePerformanceSection === "function") renderRevenuePerformanceSection(data);
         // الصف الأول: أعلى بنود الإيرادات جنب توزيع البنود الفرعية (نفس زوج البند الرئيسي/الفرعي
         // بصندوق الفلاتر)، ثم توزيع الإيرادات حسب الأرباع
         renderTopItemsChart(data);
@@ -465,57 +512,17 @@ document.addEventListener("DOMContentLoaded", async function () {
 });
 
 /* ==========================================================================
-   التصفية التفاعلية بين الرسوم (Cross-Filter بأسلوب Power BI)
-   عند الضغط على أي بند/فئة بالرسم البياني، تُعاد حساب كل البطاقات والرسوم
-   الأخرى فورًا من نفس البيانات المحمّلة أصلًا دون أي طلب إضافي للخادم.
+   التصفية التفاعلية بين الرسوم (Cross-Filter بأسلوب Power BI) - عند الضغط على بند بـ"أعلى
+   بنود الإيرادات"، تُعاد حساب البطاقات والرسوم الأخرى فورًا من نفس البيانات المحمّلة أصلًا
+   دون أي طلب إضافي للخادم - راجع applyTopItemFilter/clearTopItemFilter بالأسفل
    ========================================================================== */
-function buildFilteredView(data, idx) {
-    if (idx === null || idx === undefined || !data.categoryDetails || !data.categoryDetails[idx]) {
-        return data;
-    }
-    const d = data.categoryDetails[idx];
-    const collectionRate = d.total > 0 ? (d.collected / d.total * 100) : 0;
-    const targetPercent = d.target > 0 ? (d.collected / d.target * 100) : collectionRate;
 
-    const hasOwnTrend = d.trendLabels && d.trendLabels.length;
-    return {
-        hasData: true,
-        totalRevenue: d.total,
-        collectedRevenue: d.collected,
-        uncollectedRevenue: d.uncollected,
-        collectionRatePercent: collectionRate,
-        targetAchievementPercent: targetPercent,
-        trendLabels: hasOwnTrend ? d.trendLabels : data.trendLabels,
-        trendValues: hasOwnTrend ? d.trendValues : data.trendValues,
-        trendCollected: hasOwnTrend ? d.trendCollected : data.trendCollected,
-        trendUncollected: hasOwnTrend ? d.trendUncollected : data.trendUncollected,
-        categoryLabels: data.categoryLabels,
-        categoryCollected: data.categoryCollected,
-        categoryUncollected: data.categoryUncollected
-    };
-}
-
-function applyCategoryFilter(idx) {
-    if (!activeDashboardData) return;
-    activeCategoryIndex = idx;
-    const view = buildFilteredView(activeDashboardData, idx);
-
-    renderKPIs(view);
-    if (charts.subItemsBar) charts.subItemsBar.setOption(buildSubItemsBarOption(view));
-    if (charts.gauge) charts.gauge.setOption(buildGaugeOption(view));
-    if (charts.line) refreshLineChart(view);
-
-    updateFilterBanner(idx);
-}
-
-function updateFilterBanner(idx) {
+// بانر "مُصفّى حسب: <البند> ×" فوق بطاقات الـKPI - يظهر عند الضغط على بند بـ"أعلى بنود
+// الإيرادات"، والضغط على × يلغي التصفية ويرجّع كل شيء (الكروت + الرسمتين) لوضعه الأصلي
+function updateFilterBanner(label) {
     const grid = document.getElementById("kpiGrid");
     if (!grid) return;
     removeFilterBanner();
-
-    if (idx === null || idx === undefined || !activeDashboardData || !activeDashboardData.categoryLabels) return;
-
-    const label = activeDashboardData.categoryLabels[idx];
     if (!label) return;
 
     const banner = document.createElement("div");
@@ -530,8 +537,7 @@ function updateFilterBanner(idx) {
     grid.parentElement.insertBefore(banner, grid);
 
     document.getElementById("clearCrossFilterBtn").addEventListener("click", function () {
-        if (charts.bar) charts.bar.__clearHighlight && charts.bar.__clearHighlight();
-        applyCategoryFilter(null);
+        clearTopItemFilter();
     });
 }
 
@@ -558,9 +564,9 @@ function renderKPIs(data) {
         : 0;
 
     const cards = [
-        { cls: "c1", icon: ICONS.wallet,   label: "إجمالي الإيرادات",       value: formatNum(data.totalRevenue),       money: true },
-        { cls: "c2", icon: ICONS.check,    label: "الإيرادات المحصّلة",     value: formatNum(data.collectedRevenue),   money: true },
-        { cls: "c3", icon: ICONS.alert,    label: "الإيرادات غير المحصّلة", value: formatNum(data.uncollectedRevenue), money: true },
+        { cls: "c1", icon: ICONS.wallet,   label: "إجمالي الإيرادات",       value: formatNumExact(data.totalRevenue),       money: true },
+        { cls: "c2", icon: ICONS.check,    label: "الإيرادات المحصّلة",     value: formatNumExact(data.collectedRevenue),   money: true },
+        { cls: "c3", icon: ICONS.alert,    label: "الإيرادات غير المحصّلة", value: formatNumExact(data.uncollectedRevenue), money: true },
         { cls: "c4", icon: ICONS.trending, label: "نسبة التحصيل",           value: data.collectionRatePercent.toFixed(1) + "%", money: false },
         { cls: "c5", icon: ICONS.alert,    label: "نسبة المتبقي (غير المحصّل)", value: uncollectedPercent.toFixed(1) + "%", money: false }
     ];
@@ -596,14 +602,14 @@ function renderEntityMonthChart(data) {
     const div = document.createElement("div");
     div.className = "chart-card";
     div.style.cssText = "grid-column:1 / -1;"; // عرض كامل الصف
-    var titleText = escapeHtml(data.entityChartTitle || "الإيرادات الشهرية لكل جهة (أمانة/بلدية)");
+    var titleText = escapeHtml(data.entityChartTitle || "المحصّل ربع السنوي لكل جهة (أمانة/بلدية)");
     var badgeText = escapeHtml(data.entityChartBadge || "اضغط لعرض الجهة");
     div.innerHTML =
         '<div class="chart-header">' +
             '<div class="chart-title">' + titleText + '</div>' +
             '<div class="chart-badge">' + badgeText + '</div>' +
         '</div>' +
-        '<div class="echart-box" id="' + id + '" style="height:400px;"></div>';
+        '<div class="echart-box" id="' + id + '" style="height:280px;"></div>';
     row1.appendChild(div);
 
     const chart = echarts.init(document.getElementById(id));
@@ -650,8 +656,10 @@ function renderEntityMonthChart(data) {
             }
         }),
         legend: { type: "scroll", bottom: 0, textStyle: Object.assign({}, AXIS_LABEL_STYLE), itemWidth: 10, itemHeight: 10 },
-        grid: { left: 55, right: 16, top: 20, bottom: 64 },
-        xAxis: axisStyle({ type: "category", boundaryGap: false, data: data.entityMonthLabels, axisLabel: { rotate: data.entityMonthLabels.length > 6 ? 35 : 0 } }),
+        // boundaryGap:true يترك هامشًا قبل أول نقطة وبعد آخر نقطة بدل التصاقهما بحافتَي منطقة
+        // الرسم - يمنع تراكب تسمية القيمة الأولى/الأخيرة مع تسميات محور Y
+        grid: { left: 60, right: 24, top: 20, bottom: 56 },
+        xAxis: axisStyle({ type: "category", boundaryGap: true, data: data.entityMonthLabels, axisLabel: { rotate: data.entityMonthLabels.length > 6 ? 35 : 0 } }),
         yAxis: axisStyle({ type: "value", axisLabel: { formatter: formatCompact } }),
         series: series
     });
@@ -690,109 +698,20 @@ function renderEntityMonthChart(data) {
 }
 
 /* ==========================================================================
-   Bar Chart — Collected vs Uncollected per Category (Power BI cross-filter)
-   ========================================================================== */
-function renderBarChart(data) {
-    const row1 = document.getElementById("chartsRow1");
-    if (!row1 || !data.categoryLabels || !data.categoryLabels.length) return;
-
-    const id = "barChart_" + Date.now();
-    const div = document.createElement("div");
-    div.className = "chart-card";
-    div.innerHTML =
-        '<div class="chart-header">' +
-            '<div class="chart-title">المحصّل مقابل غير المحصّل حسب الفئة</div>' +
-            '<div class="chart-badge">اضغط على أي عمود للتصفية</div>' +
-        '</div>' +
-        '<div class="echart-box" id="' + id + '"></div>';
-    row1.appendChild(div);
-
-    const chart = echarts.init(document.getElementById(id));
-    let highlighted = null;
-
-    function makeOption(hl) {
-        return {
-            tooltip: tooltipStyle({
-                trigger: "axis",
-                axisPointer: { type: "shadow" },
-                formatter: function (params) {
-                    let html = '<div style="font-weight:700;margin-bottom:6px;">' + params[0].axisValue + '</div>';
-                    params.forEach(function (p) {
-                        html += '<div style="display:flex;align-items:center;gap:6px;">' +
-                            '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + p.color + '"></span>' +
-                            '<span>' + p.seriesName + ': <strong>' + formatNum(p.value) + '</strong></span></div>';
-                    });
-                    return html;
-                }
-            }),
-            legend: { bottom: 0, textStyle: Object.assign({}, AXIS_LABEL_STYLE), itemWidth: 12, itemHeight: 12 },
-            grid: { left: 55, right: 16, top: 28, bottom: 48 },
-            xAxis: axisStyle({ type: "category", data: data.categoryLabels, axisLabel: { rotate: data.categoryLabels.length > 6 ? 30 : 0 } }),
-            yAxis: axisStyle({ type: "value", axisLabel: { formatter: formatCompact } }),
-            series: [
-                {
-                    name: "المحصّل", type: "bar", barGap: "10%",
-                    data: data.categoryCollected.map(function (v, i) {
-                        const on = hl === null || hl === i;
-                        return {
-                            value: v,
-                            itemStyle: { color: C.dark, opacity: on ? 1 : 0.25, borderRadius: [4, 4, 0, 0] },
-                            label: {
-                                show: true, position: "top", distance: 4,
-                                formatter: function (p) { return formatCompact(p.value); },
-                                color: C.axisText, fontSize: 12, fontWeight: 700,
-                                opacity: on ? 1 : 0.35
-                            }
-                        };
-                    })
-                },
-                {
-                    name: "غير المحصّل", type: "bar",
-                    data: data.categoryUncollected.map(function (v, i) {
-                        const on = hl === null || hl === i;
-                        return {
-                            value: v,
-                            itemStyle: { color: C.red, opacity: on ? 1 : 0.25, borderRadius: [4, 4, 0, 0] },
-                            label: {
-                                show: true, position: "top", distance: 4,
-                                formatter: function (p) { return formatCompact(p.value); },
-                                color: C.axisText, fontSize: 12, fontWeight: 700,
-                                opacity: on ? 1 : 0.35
-                            }
-                        };
-                    })
-                }
-            ]
-        };
-    }
-
-    chart.setOption(makeOption(null));
-    chart.on("click", function (params) {
-        const idx = params.dataIndex;
-        highlighted = highlighted === idx ? null : idx;
-        chart.setOption(makeOption(highlighted));
-        applyCategoryFilter(highlighted);
-    });
-
-    // يسمح لزر "إلغاء التصفية" بإعادة تعيين تظليل الأعمدة أيضًا
-    chart.__clearHighlight = function () {
-        highlighted = null;
-        chart.setOption(makeOption(null));
-    };
-
-    charts.bar = chart;
-    chartRegistry.push(chart);
-}
-
-/* ==========================================================================
    Top Items Chart — أعلى بنود الإيرادات (ترتيب تنازلي حسب إجمالي الإيراد)
    ========================================================================== */
+// بند مختار حاليًا برسم "أعلى بنود الإيرادات" (يُصفّي رسم "البنود الفرعية" المجاورة) - null يعني
+// لم يُضغَط على أي بند بعد، فتعرض رسمة البنود الفرعية افتراضيًا تفصيل أعلى بند قيمةً (من الخادم)
+let selectedTopItemLabel = null;
+
 function renderTopItemsChart(data) {
     const row1 = document.getElementById("chartsRow1");
     // يعتمد فقط على عمود "تصنيف البند" (البنود الرئيسية مثل: استثمار، رسوم، جزاءات...)
     // ولا يعرض أي بند فرعي، بصرف النظر عن مستوى اللوحة الحالية
     const hasTopItems = data.topItemLabels && data.topItemLabels.length;
     if (!row1 || !hasTopItems) return;
+
+    selectedTopItemLabel = null; // إعادة ضبط عند كل تحميل لوحة جديدة
 
     const combined = data.topItemLabels.map(function (label, i) {
         return { label: label, total: data.topItemValues[i] || 0 };
@@ -805,98 +724,141 @@ function renderTopItemsChart(data) {
     div.innerHTML =
         '<div class="chart-header">' +
             '<div class="chart-title">أعلى بنود الإيرادات</div>' +
-            '<div class="chart-badge">Top Items</div>' +
+            '<div class="chart-badge">اضغط لعرض بنوده الفرعية</div>' +
         '</div>' +
         '<div class="echart-box" id="' + id + '"></div>';
     row1.appendChild(div);
 
     const chart = echarts.init(document.getElementById(id));
-    chart.setOption({
-        tooltip: tooltipStyle({
-            trigger: "axis",
-            axisPointer: { type: "shadow" },
-            formatter: function (params) {
-                const p = params[0];
-                return '<div style="font-weight:700;margin-bottom:4px;">' + p.name + '</div>' +
-                       '<div>الإيرادات: <strong>' + formatNum(p.value) + '</strong></div>';
-            }
-        }),
-        grid: { left: 10, right: 20, top: 10, bottom: 10, containLabel: true },
-        xAxis: axisStyle({ type: "value", axisLabel: { show: false }, splitLine: { show: false } }),
-        yAxis: axisStyle({
-            type: "category",
-            data: combined.map(function (x) { return x.label; }),
-            axisLabel: { width: 220, overflow: "truncate", fontSize: 12 }
-        }),
-        series: [{
-            name: "الإيرادات", type: "bar", barMaxWidth: 22,
-            data: combined.map(function (x, i) {
-                return { value: x.total, itemStyle: { color: DONUT_PALETTE[i % DONUT_PALETTE.length], borderRadius: [0, 4, 4, 0] } };
-            })
-        }]
+
+    function makeOption() {
+        return {
+            tooltip: tooltipStyle({
+                trigger: "axis",
+                axisPointer: { type: "shadow" },
+                formatter: function (params) {
+                    const p = params[0];
+                    return '<div style="font-weight:700;margin-bottom:4px;">' + p.name + '</div>' +
+                           '<div>الإيرادات: <strong>' + formatNum(p.value) + '</strong></div>';
+                }
+            }),
+            grid: { left: 10, right: 60, top: 10, bottom: 10, containLabel: true },
+            xAxis: axisStyle({ type: "value", axisLabel: { show: false }, splitLine: { show: false } }),
+            yAxis: axisStyle({
+                type: "category",
+                data: combined.map(function (x) { return x.label; }),
+                axisLabel: { width: 220, overflow: "truncate", fontSize: 12 }
+            }),
+            series: [{
+                name: "الإيرادات", type: "bar", barMaxWidth: 22, cursor: "pointer",
+                data: combined.map(function (x, i) {
+                    const selected = selectedTopItemLabel === x.label;
+                    return {
+                        value: x.total,
+                        itemStyle: {
+                            color: ITEM_PALETTE[i % ITEM_PALETTE.length], borderRadius: [0, 4, 4, 0],
+                            borderColor: selected ? C.text : "transparent", borderWidth: selected ? 2 : 0
+                        },
+                        label: {
+                            show: true, position: "right", distance: 6,
+                            formatter: function (p) { return formatCompact(p.value); },
+                            color: C.axisText, fontWeight: 700, fontSize: 12
+                        }
+                    };
+                })
+            }]
+        };
+    }
+
+    chart.setOption(makeOption());
+    chart.__makeOption = makeOption; // متاحة لـ clearTopItemFilter لإعادة رسم الشكل بلا تحديد
+    chart.on("click", function (params) {
+        if (!params.name) return;
+        if (params.name === selectedTopItemLabel) { clearTopItemFilter(); return; }
+        selectedTopItemLabel = params.name;
+        chart.setOption(makeOption());
+        applyTopItemFilter(activeDashboardData, params.name);
     });
 
     charts.topItems = chart;
     chartRegistry.push(chart);
 }
 
-/* ==========================================================================
-   Line Chart — Revenue Trend
-   ========================================================================== */
-function buildLineOption(data) {
-    const total = data.trendValues || [];
-    return {
-        tooltip: tooltipStyle({
-            trigger: "axis",
-            formatter: function (params) {
-                const p = params[0];
-                return '<div style="font-weight:700;margin-bottom:6px;">' + p.axisValue + '</div>' +
-                    '<div style="display:flex;align-items:center;gap:6px;">' +
-                    '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + p.color + '"></span>' +
-                    '<span>إجمالي الإيرادات: <strong>' + formatNum(p.value) + '</strong></span></div>';
+/* عند الضغط على بند برسم "أعلى بنود الإيرادات": تحديث كل شيء متعلّق بذلك البند فورًا (بلا أي
+   طلب شبكة، كل البيانات موجودة أصلاً مع اللوحة المحمّلة) -
+   1) رسم "البنود الفرعية" المجاورة يبدّل لتفصيل ذلك البند
+   2) بطاقات الـKPI تتحدّث لأرقام ذلك البند فقط (من data.revenueTypePerformance)
+   3) رسم "أداء الإيرادات" (الصفحة الرئيسية فقط) يبرز عمود ذلك البند ويعتّم الباقي
+   4) بانر "مُصفّى حسب: <البند> ×" يظهر أعلى الكروت */
+function applyTopItemFilter(data, classificationLabel) {
+    if (!data) return;
+
+    if (data.topItemSubItems && charts.subItemsBar) {
+        const entry = data.topItemSubItems.filter(function (x) { return x.classificationLabel === classificationLabel; })[0];
+        if (entry) {
+            charts.subItemsBar.setOption(buildSubItemsBarOption({ subItemLabels: entry.subLabels, subItemValues: entry.subValues }), true);
+            const card = charts.subItemsBar.__cardEl;
+            if (card) {
+                const badge = card.querySelector(".chart-badge");
+                if (badge) badge.textContent = classificationLabel;
             }
-        }),
-        grid: { left: 60, right: 16, top: 20, bottom: 36 },
-        xAxis: axisStyle({ type: "category", data: data.trendLabels, axisLabel: { rotate: data.trendLabels.length > 8 ? 35 : 0 } }),
-        yAxis: axisStyle({ type: "value", axisLabel: { formatter: formatCompact } }),
-        series: [
-            {
-                name: "إجمالي الإيرادات", type: "line", smooth: true, data: total,
-                lineStyle: { color: C.dark, width: 3 },
-                itemStyle: { color: C.dark },
-                areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1,
-                    colorStops: [{ offset: 0, color: "rgba(14,110,97,0.18)" }, { offset: 1, color: "rgba(14,110,97,0)" }] } },
-                symbol: "circle", symbolSize: 6
-            }
-        ]
-    };
+            try { charts.subItemsBar.resize(); } catch (e) {}
+        }
+    }
+
+    if (data.revenueTypePerformance) {
+        const row = data.revenueTypePerformance.filter(function (r) { return r.itemLabel === classificationLabel; })[0];
+        if (row) {
+            renderKPIs({
+                totalRevenue: row.invoiced,
+                collectedRevenue: row.collected,
+                uncollectedRevenue: Math.max(row.invoiced - row.collected, 0),
+                collectionRatePercent: row.invoiced > 0 ? (row.collected / row.invoiced * 100) : 0
+            });
+        }
+    }
+
+    // إبراز عمود البند المختار برسم "أداء الإيرادات" (الرئيسية فقط - المتغيّرات معرَّفة
+    // بملف revenue-performance.js المحمَّل بنفس الصفحة) وتعتيم بقية الأعمدة
+    if (typeof revenuePerfChart !== "undefined" && revenuePerfChart && typeof revenuePerfData !== "undefined" && revenuePerfData) {
+        const idx = revenuePerfData.findIndex(function (r) { return r.itemLabel === classificationLabel; });
+        if (idx > -1) {
+            try {
+                revenuePerfChart.dispatchAction({ type: "downplay" });
+                revenuePerfChart.dispatchAction({ type: "highlight", dataIndex: idx });
+            } catch (e) {}
+        }
+    }
+
+    updateFilterBanner(classificationLabel);
 }
 
-function renderLineChart(data) {
-    const row1 = document.getElementById("chartsRow1");
-    if (!row1 || !data.trendLabels || !data.trendLabels.length) return;
+// إلغاء تصفية "أعلى بنود الإيرادات": يرجّع الكروت + رسم "أداء الإيرادات" + رسم "البنود
+// الفرعية" لوضعها الأصلي (بلا أي بند مختار)، ويزيل البانر
+function clearTopItemFilter() {
+    selectedTopItemLabel = null;
+    removeFilterBanner();
 
-    const id = "lineChart_" + Date.now();
-    const div = document.createElement("div");
-    div.className = "chart-card";
-    div.innerHTML =
-        '<div class="chart-header">' +
-            '<div class="chart-title">اتجاه الإيرادات الشهري</div>' +
-            '<div class="chart-badge">Line Chart</div>' +
-        '</div>' +
-        '<div class="echart-box" id="' + id + '"></div>';
-    row1.appendChild(div);
+    if (activeDashboardData) renderKPIs(activeDashboardData);
 
-    const chart = echarts.init(document.getElementById(id));
-    chart.setOption(buildLineOption(data));
-    charts.line = chart;
-    chartRegistry.push(chart);
-}
+    if (typeof revenuePerfChart !== "undefined" && revenuePerfChart) {
+        try { revenuePerfChart.dispatchAction({ type: "downplay" }); } catch (e) {}
+    }
 
-// عند التصفية على فئة بلا اتجاه شهري خاص بها، لا يوجد رسم لتحديثه فيُترك كما هو
-function refreshLineChart(view) {
-    if (!charts.line || !view.trendLabels || !view.trendLabels.length) return;
-    charts.line.setOption(buildLineOption(view));
+    if (charts.topItems && charts.topItems.__makeOption) {
+        try { charts.topItems.setOption(charts.topItems.__makeOption()); } catch (e) {}
+    }
+
+    if (activeDashboardData && activeDashboardData.topItemSubItems && activeDashboardData.topItemSubItems.length && charts.subItemsBar) {
+        const first = activeDashboardData.topItemSubItems[0];
+        charts.subItemsBar.setOption(buildSubItemsBarOption({ subItemLabels: first.subLabels, subItemValues: first.subValues }), true);
+        const card = charts.subItemsBar.__cardEl;
+        if (card) {
+            const badge = card.querySelector(".chart-badge");
+            if (badge) badge.textContent = first.classificationLabel;
+        }
+        try { charts.subItemsBar.resize(); } catch (e) {}
+    }
 }
 
 /* ==========================================================================
@@ -904,7 +866,8 @@ function refreshLineChart(view) {
    يعرض فقط أعلى البنود الفرعية حسب الإيراد (والباقي مجمّع تحت "أخرى" من الخادم)
    بدلاً من Donut كان يزدحم بعشرات الشرائح عند كثرة البنود الفرعية
    ========================================================================== */
-const DONUT_PALETTE = [C.dark, C.mid, C.lime, C.light, C.red, "#0A5A4F", "#B9821F", "#6E8A86"];
+// تدرّجات هوية الشعار فقط (أخضر داكن/متوسط/لايم/فاتح) بلا أي لون خارج العائلة الخضراء/التركوازية
+const ITEM_PALETTE = [C.dark, C.mid, C.lime, C.light, "#0A5A4F"];
 
 function buildSubItemsBarOption(data) {
     const labels = (data.subItemLabels && data.subItemLabels.length) ? data.subItemLabels : (data.categoryLabels || []);
@@ -948,8 +911,15 @@ function buildSubItemsBarOption(data) {
             name: "الإيراد", type: "bar", barMaxWidth: 22,
             data: combined.map(function (x, i) {
                 // "أخرى" بلون محايد مميّز عن بقية البنود الفرعية
-                const color = x.label === "أخرى" ? C.muted : DONUT_PALETTE[i % DONUT_PALETTE.length];
-                return { value: x.value, itemStyle: { color: color, borderRadius: [0, 4, 4, 0] } };
+                const color = x.label === "أخرى" ? C.muted : ITEM_PALETTE[i % ITEM_PALETTE.length];
+                return {
+                    value: x.value, itemStyle: { color: color, borderRadius: [0, 4, 4, 0] },
+                    label: {
+                        show: true, position: "right", distance: 6,
+                        formatter: function (p) { return formatCompact(p.value); },
+                        color: C.axisText, fontWeight: 700, fontSize: 12
+                    }
+                };
             })
         }]
     };
@@ -959,19 +929,26 @@ function renderSubItemsBarChart(data) {
     const row2 = document.getElementById("chartsRow1");
     if (!row2) return;
 
+    // العنوان الافتراضي = اسم أعلى بند رئيسي قيمةً (نفس التفصيل الافتراضي المُرسَل بـ
+    // subItemLabels/Values من الخادم) حتى تعرف المستخدمة أي بند تعرضه الرسمة قبل أي ضغط
+    var defaultLabel = (data.topItemSubItems && data.topItemSubItems.length)
+        ? data.topItemSubItems[0].classificationLabel
+        : "اضغطي بندًا بالرسمة المجاورة";
+
     const id = "subItemsBarChart_" + Date.now();
     const div = document.createElement("div");
     div.className = "chart-card";
     div.innerHTML =
         '<div class="chart-header">' +
             '<div class="chart-title">توزيع الإيرادات حسب البنود الفرعية</div>' +
-            '<div class="chart-badge">Horizontal Bar Chart</div>' +
+            '<div class="chart-badge">' + escapeHtml(defaultLabel) + '</div>' +
         '</div>' +
         '<div class="echart-box" id="' + id + '"></div>';
     row2.appendChild(div);
 
     const chart = echarts.init(document.getElementById(id));
     chart.setOption(buildSubItemsBarOption(data));
+    chart.__cardEl = div;
     charts.subItemsBar = chart;
     chartRegistry.push(chart);
 }
@@ -1026,8 +1003,24 @@ function buildQuarterOption(data) {
 }
 
 function renderQuarterChart(data) {
+    // الدونات "توزيع الإيرادات حسب الأرباع" اختفت من الصفحة الرئيسية تحديدًا (بطلب المستخدمة)
+    // بعد إضافة رسم "أداء الإيرادات حسب نوع الإيراد" العمودي فوقها - تبقى كما هي ببقية الصفحات
+    // المشتركة (صفحات البنود الفردية) التي لم يُطلَب فيها أي تعديل
+    if (window.FILTER_MODE === "home") return;
+
     const row2 = document.getElementById("chartsRow1");
-    if (!row2 || !data.quarterLabels || !data.quarterLabels.length || !(data.quarterValues || []).some(function (v) { return v > 0; })) return;
+    if (!row2) return;
+
+    // صفحة "بيانات البلديات": الدونات كانت تكرّر نفس معلومة الرسم الخطي بالأسفل (كلاهما
+    // توزيع زمني/ربعي) - استبدلناها برسم "أعلى البلديات إيرادًا" (معلومة جديدة غير موجودة
+    // بأي رسم آخر بالصفحة) + بطاقتا أكثر/أقل بلدية تفاعلاً
+    if (window.FILTER_MODE === "baladiyah-scope") {
+        renderBaladiyahEntityRevenueChart(row2, data);
+        renderBaladiyahActivityCards(row2, data);
+        return;
+    }
+
+    if (!data.quarterLabels || !data.quarterLabels.length || !(data.quarterValues || []).some(function (v) { return v > 0; })) return;
 
     const id = "quarterChart_" + Date.now();
     const div = document.createElement("div");
@@ -1047,47 +1040,76 @@ function renderQuarterChart(data) {
 }
 
 /* ==========================================================================
-   Gauge Chart — Annual Target Achievement
+   "أعلى البلديات إيرادًا" - Horizontal Bar لأعلى 8 بلديات حسب إجمالي الإيرادات، مع نسبة
+   التحصيل بتلوين العمود (غامق = تحصيل مرتفع) - صفحة "بيانات البلديات" فقط
    ========================================================================== */
-function buildGaugeOption(data) {
-    const percent = data.targetAchievementPercent || 0;
-    const gaugeColor = percent >= 80 ? C.dark : percent >= 50 ? C.lime : C.red;
-    return {
-        series: [{
-            type: "gauge", min: 0, max: 150, splitNumber: 5,
-            startAngle: 210, endAngle: -30,
-            progress:  { show: true, width: 16, itemStyle: { color: gaugeColor } },
-            axisLine:  { lineStyle: { width: 16, color: [[1, C.grid]] } },
-            axisLabel: { color: C.axisText, fontSize: 12, fontWeight: 600, distance: 18 },
-            axisTick:  { lineStyle: { color: "#C8DFDC" }, length: 6 },
-            splitLine: { lineStyle: { color: "#C8DFDC", width: 2 }, length: 10 },
-            pointer:   { length: "65%", width: 4, itemStyle: { color: gaugeColor } },
-            anchor:    { show: true, showAbove: true, size: 14, itemStyle: { borderWidth: 3, borderColor: gaugeColor, color: "#fff" } },
-            detail:    { valueAnimation: true, fontSize: 28, fontWeight: 800, color: gaugeColor, formatter: "{value}%", offsetCenter: [0, "45%"] },
-            data: [{ value: Math.min(percent, 150), name: "نسبة تحقيق الهدف" }]
-        }]
-    };
-}
+function renderBaladiyahEntityRevenueChart(row, data) {
+    const rows = (data.entityRevenueBreakdown || []).slice(0, 8);
+    if (!rows.length) return;
 
-function renderGauge(data) {
-    const row2 = document.getElementById("chartsRow2");
-    if (!row2) return;
-
-    const id = "gaugeChart_" + Date.now();
+    const id = "baladiyahEntityRevenue_" + Date.now();
     const div = document.createElement("div");
     div.className = "chart-card";
     div.innerHTML =
         '<div class="chart-header">' +
-            '<div class="chart-title">نسبة تحقيق الهدف السنوي</div>' +
-            '<div class="chart-badge">Gauge</div>' +
+            '<div class="chart-title">أعلى البلديات إيرادًا</div>' +
+            '<div class="chart-badge">مع نسبة التحصيل</div>' +
         '</div>' +
-        '<div class="gauge-box" id="' + id + '"></div>';
-    row2.appendChild(div);
+        '<div class="echart-box" id="' + id + '"></div>';
+    row.appendChild(div);
+
+    const sorted = rows.slice().reverse(); // أعلى بلدية تظهر بالأعلى (المحور يرسم من الأسفل للأعلى)
+    const labels = sorted.map(function (r) { return r.entity; });
+    const values = sorted.map(function (r) { return r.totalValue; });
 
     const chart = echarts.init(document.getElementById(id));
-    chart.setOption(buildGaugeOption(data));
-    charts.gauge = chart;
+    chart.setOption({
+        tooltip: tooltipStyle({
+            trigger: "axis", axisPointer: { type: "shadow" },
+            formatter: function (params) {
+                const p = params[0];
+                const r = sorted[p.dataIndex];
+                return '<div style="font-weight:700;margin-bottom:4px;">' + escapeHtml(r.entity) + '</div>' +
+                    '<div>الإجمالي: <strong>' + formatNum(r.totalValue) + '</strong></div>' +
+                    '<div>نسبة التحصيل: <strong>' + r.collectionRatePercent + '%</strong></div>';
+            }
+        }),
+        grid: { left: 130, right: 70, top: 10, bottom: 10 },
+        xAxis: axisStyle({ type: "value", show: false }),
+        yAxis: axisStyle({ type: "category", data: labels, axisLabel: { width: 120, overflow: "break", lineHeight: 14, fontSize: 11 } }),
+        series: [{
+            name: "الإجمالي", type: "bar", barMaxWidth: 20,
+            data: values.map(function (v, i) {
+                return { value: v, itemStyle: { color: ITEM_PALETTE[i % ITEM_PALETTE.length], borderRadius: [0, 6, 6, 0] } };
+            }),
+            label: {
+                show: true, position: "right", color: C.axisText, fontWeight: 700, fontSize: 11,
+                formatter: function (p) { return formatCompact(p.value) + "  (" + sorted[p.dataIndex].collectionRatePercent + "%)"; }
+            }
+        }]
+    });
     chartRegistry.push(chart);
+}
+
+function baladiyahActivitySquareHtml(icon, label, entity, collected) {
+    return '<div class="ai-insight-card">' +
+        '<div class="ai-insight-icon"><i class="bi ' + icon + '"></i></div>' +
+        '<div class="ai-insight-text">' +
+            '<div class="ai-insight-label">' + label + '</div>' +
+            '<div class="ai-insight-dept">' + escapeHtml(entity || "—") + '</div>' +
+            (entity ? '<div class="ai-insight-metric">' + formatNum(collected) + ' ' + SAR_SYMBOL + '</div>' : '') +
+        '</div>' +
+    '</div>';
+}
+
+function renderBaladiyahActivityCards(row, data) {
+    if (!data.topActivityEntity && !data.bottomActivityEntity) return;
+    const div = document.createElement("div");
+    div.className = "ai-insight-wrap";
+    div.innerHTML =
+        baladiyahActivitySquareHtml("bi-trophy", "أكثر بلدية تفاعلاً (محصّل)", data.topActivityEntity, data.topActivityCollected) +
+        baladiyahActivitySquareHtml("bi-graph-down-arrow", "أقل بلدية تفاعلاً (محصّل)", data.bottomActivityEntity, data.bottomActivityCollected);
+    row.appendChild(div);
 }
 
 /* ==========================================================================

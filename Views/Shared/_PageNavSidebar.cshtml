@@ -20,13 +20,12 @@
     var links = new[]
     {
         new { Url = Url.Action("Index", "Home"), Icon = "report", Label = "الرئيسية", Cls = LinkClass("Home", "Index") },
-        new { Url = Url.Action("Scope", "Dashboard", new { scope = "Amanah" }), Icon = "building", Label = "بيانات الإدارات", Cls = LinkClass("Dashboard", "Scope", "Amanah") },
+        new { Url = Url.Action("Scope", "Dashboard", new { scope = "Amanah" }), Icon = "building", Label = "الإدارات العامة", Cls = LinkClass("Dashboard", "Scope", "Amanah") },
         new { Url = Url.Action("Scope", "Dashboard", new { scope = "Baladiyah" }), Icon = "city", Label = "بيانات البلديات", Cls = LinkClass("Dashboard", "Scope", "Baladiyah") },
-        new { Url = Url.Action("Overview", "Claims"), Icon = "alert", Label = "المطالبات والمديونيات", Cls = LinkClass("Claims", "Overview") },
+        new { Url = Url.Action("Index", "ClaimsExecution"), Icon = "alert", Label = "المديونيات والمطالبات", Cls = LinkClass("ClaimsExecution", "Index") },
         new { Url = Url.Action("Followup", "Claims"), Icon = "trending", Label = "الطرح", Cls = LinkClass("Claims", "Followup") },
         new { Url = Url.Action("GracePeriodExpiring", "Claims"), Icon = "contract", Label = "العقود التي تنتهي فترة سماحها خلال 3 أشهر", Cls = LinkClass("Claims", "GracePeriodExpiring") },
         new { Url = Url.Action("TargetsComparisonBaladiyah", "Dashboard"), Icon = "city", Label = "مستهدفات البلديات", Cls = LinkClass("Dashboard", "TargetsComparisonBaladiyah") },
-        new { Url = Url.Action("TargetsComparisonFinance", "Dashboard"), Icon = "trending", Label = "مستهدفات المالية", Cls = LinkClass("Dashboard", "TargetsComparisonFinance") },
     };
 
     bool onContractPage = string.Equals(currentController, "Contract", StringComparison.OrdinalIgnoreCase)

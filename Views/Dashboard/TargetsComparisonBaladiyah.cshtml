@@ -46,14 +46,6 @@
                 </select>
                 <i class="bi bi-chevron-down filter-chevron"></i>
             </div>
-            <div class="tc-upload-wrap">
-                <input type="file" id="tcMonthlyTargetInput" accept=".xlsx" hidden />
-                <button type="button" id="tcMonthlyTargetBtn" class="tc-upload-btn">
-                    <i class="bi bi-upload"></i>
-                    <span>رفع ملف المستهدف الشهري</span>
-                </button>
-                <span id="tcUploadStatus" class="tc-upload-status"></span>
-            </div>
         </div>
 
         <div id="tcContent" class="tc-mode-single">
@@ -78,7 +70,6 @@
     <script>
         window.TC_MODE = "baladiyah";
         window.TC_DATA_URL = "@Url.Action("TargetsComparisonData", "Dashboard")";
-        window.TC_UPLOAD_MONTHLY_TARGET_URL = "@Url.Action("UploadMonthlyTarget", "Dashboard")";
     </script>
     <script src="~/js/targets-comparison.js" asp-append-version="true"></script>
 }

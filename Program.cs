@@ -20,10 +20,15 @@ builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<IMonthlyTargetImportService, MonthlyTargetImportService>();
 builder.Services.AddScoped<IFinanceTargetImportService, FinanceTargetImportService>();
-builder.Services.AddScoped<IClaimsDebtsImportService, ClaimsDebtsImportService>();
+builder.Services.AddScoped<IRevenueBaselineImportService, RevenueBaselineImportService>();
+builder.Services.AddScoped<IDebtInvoiceImportService, DebtInvoiceImportService>();
+builder.Services.AddScoped<IClaimExecutionImportService, ClaimExecutionImportService>();
+builder.Services.AddScoped<IDebtsAnalyticsService, DebtsAnalyticsService>();
+builder.Services.AddScoped<IClaimsExecutionAnalyticsService, ClaimsExecutionAnalyticsService>();
 builder.Services.AddScoped<IContractImportService, ContractImportService>();
-builder.Services.AddScoped<IClaimsDebtsAnalyticsService, ClaimsDebtsAnalyticsService>();
 builder.Services.AddScoped<IAmanahInvestmentDashboardService, AmanahInvestmentDashboardService>();
+builder.Services.AddScoped<IContractPeriodImportService, ContractPeriodImportService>();
+builder.Services.AddScoped<IContractPeriodAnalyticsService, ContractPeriodAnalyticsService>();
 
 ExcelDashboard.Helpers.AppMode.ReadOnly = builder.Configuration.GetValue<bool>("READONLY_MODE");
 
@@ -277,6 +282,165 @@ using (var scope = app.Services.CreateScope())
         cmd.ExecuteNonQuery();
     }
 
+    // جدول "المحصل الفعلي لسنة الأساس 2025" لكل تصنيف بند (بطاقتا "محصل 2025"/"نسبة نمو
+    // الإيرادات" أعلى رسم "أداء الإيرادات" بالرئيسية) - قد لا يكون موجودًا في قاعدة بيانات قديمة
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = @"CREATE TABLE IF NOT EXISTS RevenueBaselineCollectedItems (
+            Id INTEGER NOT NULL CONSTRAINT PK_RevenueBaselineCollectedItems PRIMARY KEY AUTOINCREMENT,
+            Classification TEXT NOT NULL,
+            CollectedValue REAL NOT NULL,
+            Month INTEGER NOT NULL DEFAULT 0,
+            UploadedAt TEXT NOT NULL
+        );";
+        cmd.ExecuteNonQuery();
+    }
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "CREATE INDEX IF NOT EXISTS IX_RevenueBaselineCollectedItems_Classification ON RevenueBaselineCollectedItems (Classification);";
+        cmd.ExecuteNonQuery();
+    }
+
+    // جدول "فواتير المديونيات" (صفحة "لوحة المديونيات") - قد لا يكون موجودًا في قاعدة بيانات قديمة
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = @"CREATE TABLE IF NOT EXISTS DebtInvoiceRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_DebtInvoiceRecords PRIMARY KEY AUTOINCREMENT,
+            Scope TEXT NULL,
+            Entity TEXT NULL,
+            Classification TEXT NULL,
+            Category TEXT NULL,
+            ItemNumber TEXT NULL,
+            PaymentStatus TEXT NULL,
+            ItemType TEXT NULL,
+            Value REAL NULL,
+            CreatedDate TEXT NULL,
+            PaymentDate TEXT NULL,
+            SettlementDate TEXT NULL,
+            CancellationDate TEXT NULL,
+            CustomerName TEXT NULL,
+            InvestorNumber TEXT NULL,
+            InvestorName TEXT NULL,
+            ContractNumber TEXT NULL,
+            ContractIdRaw TEXT NULL,
+            ContractDate TEXT NULL,
+            InvoiceNumber TEXT NULL,
+            InvoiceDescription TEXT NULL,
+            RulingNumber TEXT NULL,
+            ExecutionNumber TEXT NULL,
+            PaymentEntryNumber TEXT NULL,
+            BatchStatusAr TEXT NULL,
+            BatchStatusEn TEXT NULL,
+            BatchNumber TEXT NULL,
+            DaysElapsed INTEGER NULL,
+            ContractType TEXT NULL,
+            ContractStatus TEXT NULL,
+            IsLegalExecution TEXT NULL,
+            LegalExecutionClaimStatus TEXT NULL,
+            StatementUpdate TEXT NULL,
+            PreviousPortfolio TEXT NULL,
+            GeneralDepartment TEXT NULL,
+            Portfolio TEXT NULL,
+            ImportedAt TEXT NOT NULL
+        );";
+        cmd.ExecuteNonQuery();
+    }
+    foreach (var col in new[] { "ContractNumber", "InvoiceNumber", "GeneralDepartment", "Portfolio", "PaymentStatus", "CreatedDate" })
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"CREATE INDEX IF NOT EXISTS IX_DebtInvoiceRecords_{col} ON DebtInvoiceRecords ({col});";
+        cmd.ExecuteNonQuery();
+    }
+
+    // جدول "المطالبات التنفيذية" (صفحة "لوحة المطالبات التنفيذية") - قد لا يكون موجودًا في قاعدة بيانات قديمة
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ClaimExecutionRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_ClaimExecutionRecords PRIMARY KEY AUTOINCREMENT,
+            Amanah TEXT NULL,
+            Baladiyah TEXT NULL,
+            InvestorName TEXT NULL,
+            OpportunityNumber TEXT NULL,
+            OpportunityDescription TEXT NULL,
+            OpportunityType TEXT NULL,
+            ContractType TEXT NULL,
+            ContractStatus TEXT NULL,
+            ContractNumber TEXT NULL,
+            ContractSource TEXT NULL,
+            PaymentNumber TEXT NULL,
+            PaymentStatus TEXT NULL,
+            PaymentDueDate TEXT NULL,
+            PaymentValueWithTax REAL NULL,
+            PaymentValueWithoutTax REAL NULL,
+            TaxValue REAL NULL,
+            InvoiceNumber TEXT NULL,
+            ClaimStatusFull TEXT NULL,
+            ClaimStatusShort TEXT NULL,
+            CancellationReason TEXT NULL,
+            CancellationNotes TEXT NULL,
+            ReturnedFromJudiciaryDate TEXT NULL,
+            SentToExecutionDate TEXT NULL,
+            CancellationDate TEXT NULL,
+            RequestNumber TEXT NULL,
+            FirstNoticeNumber TEXT NULL,
+            FirstNoticeDate TEXT NULL,
+            SecondNoticeNumber TEXT NULL,
+            SecondNoticeDate TEXT NULL,
+            PerformanceClaimNoticeNumber TEXT NULL,
+            PerformanceClaimNoticeDate TEXT NULL,
+            JudiciaryReturnReason TEXT NULL,
+            CompanyName TEXT NULL,
+            Portfolio TEXT NULL,
+            GeneralDepartment TEXT NULL,
+            Period TEXT NULL,
+            ImportedAt TEXT NOT NULL
+        );";
+        cmd.ExecuteNonQuery();
+    }
+    foreach (var col in new[] { "ContractNumber", "InvoiceNumber", "OpportunityNumber", "ClaimStatusShort" })
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"CREATE INDEX IF NOT EXISTS IX_ClaimExecutionRecords_{col} ON ClaimExecutionRecords ({col});";
+        cmd.ExecuteNonQuery();
+    }
+
+    // جدول "العقود التي تنتهي فترة سماحها خلال 3 أشهر" - قد لا يكون موجودًا في قاعدة بيانات قديمة
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ContractPeriodRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_ContractPeriodRecords PRIMARY KEY AUTOINCREMENT,
+            OpportunityNumber TEXT NULL,
+            OpportunityName TEXT NULL,
+            OpportunityDescription TEXT NULL,
+            ContractNumber TEXT NULL,
+            PaperContractNumber TEXT NULL,
+            ContractType TEXT NULL,
+            ContractSource TEXT NULL,
+            ContractStatus TEXT NULL,
+            ContractDurationYears INTEGER NULL,
+            ContractEndDate TEXT NULL,
+            SiteDeliveryDate TEXT NULL,
+            ContractValidityStatus TEXT NULL,
+            PrepPeriodPercent REAL NULL,
+            PrepPeriodDurationDays INTEGER NULL,
+            PrepPeriodEndDate TEXT NULL,
+            PaymentDueStartDate TEXT NULL,
+            FirstPaymentAfterPrepDate TEXT NULL,
+            PrepPeriodStatus TEXT NULL,
+            GeneralDepartment TEXT NULL,
+            Portfolio TEXT NULL,
+            SigningDate TEXT NULL,
+            ImportedAt TEXT NOT NULL
+        );";
+        cmd.ExecuteNonQuery();
+    }
+    foreach (var col in new[] { "ContractNumber", "GeneralDepartment", "Portfolio", "ContractType", "PrepPeriodStatus" })
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"CREATE INDEX IF NOT EXISTS IX_ContractPeriodRecords_{col} ON ContractPeriodRecords ({col});";
+        cmd.ExecuteNonQuery();
+    }
+
     // عمود "البند" (ItemCategory) أُضيف لاحقًا لجدولَي ClaimRecords/DebtRecords - نضيفه يدويًا
     // إن كانت القاعدة أُنشئت قبل إضافته (بنفس أسلوب ترقية DashboardRecords أعلاه)
     void AddColumnIfMissing(string table, string column, string sqlType)
@@ -303,8 +467,40 @@ using (var scope = app.Services.CreateScope())
     AddColumnIfMissing("DebtRecords", "ItemCategory", "TEXT NULL");
     AddColumnIfMissing("ClaimRecords", "ContractNumber", "TEXT NULL");
     AddColumnIfMissing("DebtRecords", "ContractNumber", "TEXT NULL");
+    AddColumnIfMissing("RevenueBaselineCollectedItems", "Month", "INTEGER NOT NULL DEFAULT 0");
+    AddColumnIfMissing("ContractPeriodRecords", "SigningDate", "TEXT NULL");
+    AddColumnIfMissing("ClaimExecutionRecords", "GeneralDepartment", "TEXT NULL");
+    AddColumnIfMissing("ClaimExecutionRecords", "Period", "TEXT NULL");
     AddColumnIfMissing("DashboardRecords", "ItemNumber", "TEXT NULL");
+    AddColumnIfMissing("DashboardRecords", "Month", "INTEGER NULL");
+    AddColumnIfMissing("DashboardRecords", "InvestmentType", "TEXT NULL");
+    AddColumnIfMissing("DashboardRecords", "ContractStatus", "TEXT NULL");
+    AddColumnIfMissing("DashboardRecords", "InvestorName", "TEXT NULL");
+    AddColumnIfMissing("DashboardRecords", "PaymentNumber", "TEXT NULL");
     AddColumnIfMissing("Sections", "ItemNumbers", "TEXT NULL");
+    // TargetSource يميّز صفوف "مستهدف المالية" عن صفوف "مستهدف البلديات والإسكان" الآن أنه صار
+    // بإمكان جدول واحد (FinanceItemTargets) يحمل كلا المصدرين من نفس ملف "المستهدف السنوي" -
+    // DEFAULT 'Finance' يُصنّف الصفوف الموجودة مسبقًا (كلها كانت من مصدر المالية) تلقائيًا
+    AddColumnIfMissing("FinanceItemTargets", "TargetSource", "TEXT NOT NULL DEFAULT 'Finance'");
+
+    // إعادة حساب "الربع"/"الشهر" لكل السجلات الموجودة مسبقًا بنفس منطق الاستيراد الجديد (تاريخ
+    // الدفع للمحصّلة، تاريخ الإنشاء لغير المحصّلة) بدل قيمة "الربع" الخام القديمة من الملف، وتعبئة
+    // عمود "الشهر" الجديد الذي كان فارغًا بالكامل قبل هذا التحديث - تُنفَّذ في كل إقلاع (استعلام
+    // واحد رخيص) حتى تبقى صحيحة دون الحاجة لإعادة رفع أي ملف
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = @"
+            UPDATE DashboardRecords
+            SET
+                Month = CAST(strftime('%m',
+                    CASE WHEN COALESCE(CollectedValue, 0) > 0 THEN RecordDate ELSE CreatedDate END
+                ) AS INTEGER),
+                Quarter = 'Q' || CAST(
+                    ((CAST(strftime('%m',
+                        CASE WHEN COALESCE(CollectedValue, 0) > 0 THEN RecordDate ELSE CreatedDate END
+                    ) AS INTEGER) - 1) / 3) + 1 AS TEXT);";
+        cmd.ExecuteNonQuery();
+    }
 
     // تصحيح ترتيب كلمات إدارة "التأجير المباشر والمؤقت" لتطابق النص الفعلي المستخدم بملفات
     // الإكسل ("التأجير المؤقت والمباشر")، حتى تنجح المطابقة التلقائية عند الاستيراد.

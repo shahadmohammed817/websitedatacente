@@ -163,6 +163,9 @@ namespace ExcelDashboard.Models
         [MaxLength(20)]
         public string? Quarter { get; set; } // الربع (Q1/Q2/Q3/Q4) - يُستخدم بقائمة التصفية بالداشبورد
 
+        /// <summary>الشهر الميلادي (1-12) لنفس تاريخ الأساس المستخدم لحساب Quarter أعلاه - يُستخدم بفلتر "الشهر" بالداشبورد</summary>
+        public int? Month { get; set; }
+
         /// <summary>
         /// الإدارة العامة (عمود "الإدارة العامة" بالملف، مثل "الإدارة العامة لمحافظ الاستثمارات
         /// التجارية") - نص خام كما هو بالملف، يُستخدم لتفصيل صفحة "بنود الأمانة" لبند الاستثمار
@@ -174,6 +177,22 @@ namespace ExcelDashboard.Models
         /// <summary>الإدارة الفرعية (عمود "الإدارة الفرعية" بالملف) - نص خام، تابع لـ DeptGeneral أعلاه</summary>
         [MaxLength(250)]
         public string? DeptSub { get; set; }
+
+        /// <summary>نوع الاستثمار (عمود "نوع الاستثمار" بالملف) - يُستخدم بدونات وفلتر صفحة "الإدارات العامة"</summary>
+        [MaxLength(250)]
+        public string? InvestmentType { get; set; }
+
+        /// <summary>حالة العقد (عمود "حالة العقد" بالملف، مثل "قائم"/"جديد") - يُستخدم برسم "حالة العقد"</summary>
+        [MaxLength(100)]
+        public string? ContractStatus { get; set; }
+
+        /// <summary>اسم المستثمر (عمود "إسم المستثمر" بالملف) - يُستخدم بتصدير صفحة "الإدارات العامة"</summary>
+        [MaxLength(300)]
+        public string? InvestorName { get; set; }
+
+        /// <summary>رقم الدفعة/الإيفاء (عمود "رقم إيفاء" بالملف) - يُستخدم بتصدير صفحة "الإدارات العامة"</summary>
+        [MaxLength(100)]
+        public string? PaymentNumber { get; set; }
 
         public DateTime? RecordDate { get; set; } // التاريخ (للرسم الزمني - عادة "تاريخ الدفع")
 
@@ -284,8 +303,11 @@ namespace ExcelDashboard.Models
     }
 
     /// <summary>
-    /// مستهدف وزارة المالية السنوي (بلا تفصيل شهري) - من ملف "مستهدف المالية" الذي يقسّم
-    /// المستهدف بحسب النطاق (الأمانة مقابل مجموع البلديات) ثم البند الرئيسي وبنده الفرعي.
+    /// مستهدف سنوي بلا تفصيل شهري، من ملف "المستهدف السنوي" الذي يقسّم كل نطاق (الأمانة/مجموع
+    /// البلديات) لبند رئيسي وبنده الفرعي، وبعمودَي قيمة جنب بعض لكل صف: مستهدف وزارة المالية
+    /// ومستهدف وزارة البلديات والإسكان (TargetSource يميّز بينهما - نفس البند الرئيسي/الفرعي
+    /// بالضبط لكلا المصدرين لأنهما من نفس صفوف نفس الملف، فيبقى ربط "تصنيف البند" (خريطتا
+    /// FinanceMainItemToClassifications/BaladiyahHousingMainItemToClassifications) متطابقًا).
     /// </summary>
     public class FinanceItemTarget
     {
@@ -295,6 +317,12 @@ namespace ExcelDashboard.Models
         [Required, MaxLength(20)]
         public string Scope { get; set; } = string.Empty;
 
+        /// <summary>"Finance" (وزارة المالية) أو "BaladiyahHousing" (وزارة البلديات والإسكان -
+        /// الرقم السنوي الإجمالي فقط؛ التفصيل الشهري/لكل بلدية مصدره جدول MonthlyBaladiyahTarget
+        /// المنفصل). القيمة الافتراضية "Finance" للتوافق مع الصفوف المستورَدة قبل إضافة هذا العمود.</summary>
+        [Required, MaxLength(30)]
+        public string TargetSource { get; set; } = "Finance";
+
         [Required, MaxLength(250)]
         public string MainItem { get; set; } = string.Empty;
 
@@ -302,6 +330,29 @@ namespace ExcelDashboard.Models
         public string? SubItem { get; set; }
 
         public decimal AnnualTarget { get; set; }
+
+        public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// إجمالي المحصّل الفعلي لسنة أساس ثابتة (حاليًا 2025) لكل تصنيف بند، من ملف خارجي منفصل
+    /// كليًا عن DashboardRecords (مصدره أدق من بيانات 2025 الموجودة بالجدول الرئيسي حاليًا).
+    /// يُستخدم فقط لبطاقتَي "المحصل 2025"/"نسبة نمو الإيرادات" أعلى رسم "أداء الإيرادات"
+    /// بالصفحة الرئيسية - لا علاقة له بأي صفحة أو رسم آخر.
+    /// </summary>
+    public class RevenueBaselineCollectedItem
+    {
+        public int Id { get; set; }
+
+        [Required, MaxLength(150)]
+        public string Classification { get; set; } = string.Empty; // تصنيف البند (نفس عمود Classification بـ DashboardRecord)
+
+        public decimal CollectedValue { get; set; }
+
+        /// <summary>شهر الدفع (1-12) لهذا المجموع - من عمود "تاريخ الدفع" بالملف. يتيح تحديد
+        /// بطاقة "محصل 2025" بنفس عدد الأشهر المتوفرة فعليًا بالسنة الحالية (بدل مقارنة سنة
+        /// كاملة بسنة جزئية) - انظر AnalyticsService.GetOverviewDataAsync.</summary>
+        public int Month { get; set; }
 
         public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
     }

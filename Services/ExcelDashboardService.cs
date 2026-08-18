@@ -216,7 +216,11 @@ namespace ExcelDashboard.Services
                     object? cellVal = raw[r, c];
                     if (cellVal is DateTime dt)
                     {
-                        rowDict[headers[c]] = dt.ToString("yyyy-MM-dd");
+                        // InvariantCulture إلزامي هنا: على أنظمة تشغيل بلغة عربية سعودية، الثقافة
+                        // الافتراضية للعملية تستخدم التقويم الهجري (UmAlQuraCalendar)، فبدون تحديد
+                        // الثقافة صراحةً يُنسَّق تاريخ ميلادي صحيح كأرقام هجرية بالغلط (مثال: يصبح
+                        // 2026-10-28 نصًا هجريًا "1448-05-17") رغم أن القيمة المخزَّنة صحيحة 100%
+                        rowDict[headers[c]] = dt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
                     }
                     else
                     {

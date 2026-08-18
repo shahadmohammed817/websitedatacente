@@ -15,9 +15,11 @@ namespace ExcelDashboard.Data
         public DbSet<ImportLog> ImportLogs => Set<ImportLog>();
         public DbSet<MonthlyBaladiyahTarget> MonthlyBaladiyahTargets => Set<MonthlyBaladiyahTarget>();
         public DbSet<FinanceItemTarget> FinanceItemTargets => Set<FinanceItemTarget>();
-        public DbSet<ClaimRecord> ClaimRecords => Set<ClaimRecord>();
-        public DbSet<DebtRecord> DebtRecords => Set<DebtRecord>();
+        public DbSet<RevenueBaselineCollectedItem> RevenueBaselineCollectedItems => Set<RevenueBaselineCollectedItem>();
         public DbSet<ContractRecord> ContractRecords => Set<ContractRecord>();
+        public DbSet<DebtInvoiceRecord> DebtInvoiceRecords => Set<DebtInvoiceRecord>();
+        public DbSet<ClaimExecutionRecord> ClaimExecutionRecords => Set<ClaimExecutionRecord>();
+        public DbSet<ContractPeriodRecord> ContractPeriodRecords => Set<ContractPeriodRecord>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -82,23 +84,29 @@ namespace ExcelDashboard.Data
                 e.HasIndex(t => new { t.Scope, t.MainItem });
             });
 
-            modelBuilder.Entity<ClaimRecord>(e =>
-            {
-                e.HasIndex(r => r.Department);
-                e.HasIndex(r => r.ClaimDate);
-            });
-
-            modelBuilder.Entity<DebtRecord>(e =>
-            {
-                e.HasIndex(r => r.Department);
-                e.HasIndex(r => r.DebtDate);
-            });
-
             modelBuilder.Entity<ContractRecord>(e =>
             {
                 e.HasIndex(r => r.GeneralDepartment);
                 e.HasIndex(r => r.ContractType);
                 e.HasIndex(r => r.Status);
+            });
+
+            modelBuilder.Entity<DebtInvoiceRecord>(e =>
+            {
+                e.HasIndex(r => r.ContractNumber);
+                e.HasIndex(r => r.InvoiceNumber);
+                e.HasIndex(r => r.GeneralDepartment);
+                e.HasIndex(r => r.Portfolio);
+                e.HasIndex(r => r.PaymentStatus);
+                e.HasIndex(r => r.CreatedDate);
+            });
+
+            modelBuilder.Entity<ClaimExecutionRecord>(e =>
+            {
+                e.HasIndex(r => r.ContractNumber);
+                e.HasIndex(r => r.InvoiceNumber);
+                e.HasIndex(r => r.OpportunityNumber);
+                e.HasIndex(r => r.ClaimStatusShort);
             });
 
             modelBuilder.Entity<DashboardRecord>(e =>

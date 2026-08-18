@@ -11,89 +11,80 @@ namespace ExcelDashboard.Controllers
     /// </summary>
     public class ClaimsController : Controller
     {
-        private readonly IClaimsDebtsImportService _importService;
-        private readonly IClaimsDebtsAnalyticsService _analytics;
         private readonly IContractImportService _contractImport;
         private readonly IAnalyticsService _analyticsService;
+        private readonly IContractPeriodImportService _contractPeriodImport;
+        private readonly IContractPeriodAnalyticsService _contractPeriodAnalytics;
 
         public ClaimsController(
-            IClaimsDebtsImportService importService,
-            IClaimsDebtsAnalyticsService analytics,
             IContractImportService contractImport,
-            IAnalyticsService analyticsService)
+            IAnalyticsService analyticsService,
+            IContractPeriodImportService contractPeriodImport,
+            IContractPeriodAnalyticsService contractPeriodAnalytics)
         {
-            _importService = importService;
-            _analytics = analytics;
             _contractImport = contractImport;
             _analyticsService = analyticsService;
+            _contractPeriodImport = contractPeriodImport;
+            _contractPeriodAnalytics = contractPeriodAnalytics;
         }
 
-        /// <summary>صفحة "المطالبات والمديونيات" (نظرة عامة)</summary>
-        [HttpGet("Claims/Overview")]
-        public IActionResult Overview()
-        {
-            return View();
-        }
-
-        /// <summary>صفحة "متابعة الأداء"</summary>
+        /// <summary>صفحة "الطرح" (رغم اسم المسار "Followup" التاريخي)</summary>
         [HttpGet("Claims/Followup")]
         public IActionResult Followup()
         {
             return View();
         }
 
-        /// <summary>صفحة رفع ملف Excel الخاص بالمطالبات والمديونيات</summary>
-        [HttpGet("Claims/Upload")]
-        public IActionResult Upload()
-        {
-            return View();
-        }
-
-        /// <summary>صفحة "العقود التي تنتهي فترة سماحها خلال 3 أشهر" - فارغة حاليًا بانتظار ربطها بمصدر بيانات لاحقًا</summary>
+        /// <summary>صفحة "العقود التي تنتهي فترة سماحها خلال 3 أشهر" - مصدرها ملف "العقود.xlsx" يُرفع من زر مخصص أعلى الصفحة</summary>
         [HttpGet("Claims/GracePeriodExpiring")]
         public IActionResult GracePeriodExpiring()
         {
             return View();
         }
 
-        [HttpPost("Claims/UploadExcel")]
+        [HttpGet("Claims/GracePeriodExpiring/Data")]
+        public async Task<IActionResult> GracePeriodExpiringData(string? department, string? portfolio, string? contractType, string? contractStatus)
+        {
+            var data = await _contractPeriodAnalytics.GetDataAsync(department, portfolio, contractType, contractStatus);
+            return Json(data);
+        }
+
+        /// <summary>قائمة العقود لدرج تفاصيل قوس "العقود التي شارفت على الانتهاء" عند الضغط على لون (أحمر/أخضر)</summary>
+        [HttpGet("Claims/GracePeriodExpiring/ContractEndingList")]
+        public async Task<IActionResult> GracePeriodContractEndingList(bool isRed, string? department, string? portfolio, string? contractType, string? contractStatus)
+        {
+            var rows = await _contractPeriodAnalytics.GetContractEndingListAsync(isRed, department, portfolio, contractType, contractStatus);
+            return Json(rows);
+        }
+
+        /// <summary>قائمة العقود لدرج تفاصيل قوس "العقود التي تنتهي فترة سماحها خلال 2026" عند الضغط على لون (أحمر/أخضر)</summary>
+        [HttpGet("Claims/GracePeriodExpiring/PrepEndingList")]
+        public async Task<IActionResult> GracePeriodPrepEndingList(bool isRed, string? department, string? portfolio, string? contractType, string? contractStatus)
+        {
+            var rows = await _contractPeriodAnalytics.GetPrepEndingListAsync(isRed, department, portfolio, contractType, contractStatus);
+            return Json(rows);
+        }
+
+        /// <summary>رفع ملف "العقود" (زر مخصص أعلى الصفحة). يستبدل كل العقود القديمة بالكامل.</summary>
+        [HttpPost("Claims/GracePeriodExpiring/Upload")]
         [RequestSizeLimit(100_000_000)]
-        public async Task<IActionResult> UploadExcel(IFormFile excelFile)
+        public async Task<IActionResult> GracePeriodExpiringUpload(IFormFile contractPeriodFile)
         {
             if (AppMode.ReadOnly)
                 return Json(new { success = false, message = "الموقع بوضع العرض فقط حاليًا - الرفع غير متاح." });
 
-            if (excelFile == null || excelFile.Length == 0)
+            if (contractPeriodFile == null || contractPeriodFile.Length == 0)
                 return Json(new { success = false, message = "يرجى اختيار ملف صالح." });
 
-            if (!excelFile.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            if (!contractPeriodFile.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
                 return Json(new { success = false, message = "يرجى رفع ملف بصيغة .xlsx فقط." });
 
-            using var stream = excelFile.OpenReadStream();
-            var result = await _importService.ImportAsync(stream);
+            using var stream = contractPeriodFile.OpenReadStream();
+            var result = await _contractPeriodImport.ImportAsync(stream);
 
-            return Json(new
-            {
-                success = result.Success,
-                message = result.Message,
-                claimsImported = result.ClaimsImported,
-                debtsImported = result.DebtsImported
-            });
+            return Json(new { success = result.Success, message = result.Message, rowsImported = result.RowsImported });
         }
-
-        [HttpGet("Claims/Overview/Data")]
-        public async Task<IActionResult> OverviewData()
-        {
-            var data = await _analytics.GetOverviewDataAsync();
-            return Json(data);
-        }
-
-        [HttpGet("Claims/Followup/Data")]
-        public async Task<IActionResult> FollowupData()
-        {
-            var data = await _analytics.GetFollowupDataAsync();
-            return Json(data);
-        }
+        
 
         /// <summary>رفع ملف عقود "الطرح" (زر مخصص أعلى صفحة "الطرح"). يستبدل كل العقود القديمة بالكامل.</summary>
         [HttpPost("Claims/UploadContracts")]

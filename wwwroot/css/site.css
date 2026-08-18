@@ -47,8 +47,11 @@ html, body {
 body {
     background-image:
         radial-gradient(1200px 520px at 100% -10%, rgba(141, 198, 63, 0.10), transparent),
-        radial-gradient(1000px 520px at -10% 8%, rgba(14, 110, 97, 0.09), transparent);
-    background-attachment: fixed;
+        radial-gradient(1000px 520px at -10% 8%, rgba(14, 110, 97, 0.09), transparent),
+        url("/images/bg-pattern.jpg");
+    background-repeat: no-repeat, no-repeat, repeat;
+    background-size: auto, auto, 420px;
+    background-attachment: fixed, fixed, fixed;
 }
 
 a { text-decoration: none; color: inherit; }
@@ -647,6 +650,17 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
     box-shadow: 0 0 0 3px rgba(63, 143, 135, 0.14);
 }
 
+/* زر "مسح الفلاتر" - موحّد بكل صفحات الموقع اللي فيها شريط فلاتر */
+.filter-clear-btn {
+    display: flex; align-items: center; gap: 6px;
+    height: 42px; padding: 0 16px; box-sizing: border-box;
+    background: transparent; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    color: var(--muted); font-family: "Cairo", sans-serif; font-weight: 700; font-size: .82rem;
+    cursor: pointer; transition: all .15s var(--ease);
+}
+.filter-clear-btn:hover { border-color: #D6534A; color: #D6534A; background: rgba(214,83,74,0.06); }
+.filter-clear-btn i { font-size: 13px; }
+
 /* أيقونات موحّدة الحجم والأسلوب (Bootstrap Icons) داخل جميع الفلاتر */
 .filter-icon {
     display: flex; align-items: center; justify-content: center;
@@ -696,9 +710,26 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
 .kpi-grid-4 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 22px; }
 @media (max-width: 1400px) { .kpi-grid-4 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
 
+/* كروت 1-3 (مبالغ) أعرض من كروت 4-5 (نسب) - الأرقام الكاملة بلا تقريب أطول من نسبة مئوية قصيرة،
+   فتحتاج مساحة أكبر لتبقى واضحة. مقصورة على الرئيسية وصفحة البلديات فقط (طلب صريح) - إدارات
+   الأمانة العامة وصفحة البند تبقيان بالأعمدة المتساوية الأصلية */
+.kpi-grid-4.kpi-grid-wide { grid-template-columns: 1.3fr 1.3fr 1.3fr 0.75fr 0.75fr; }
+/* كانت تتحوّل لأعمدة متساوية عند 1400px (شاشة لابتوب عادية) فيرجع نفس مشكلة ازدحام الأرقام -
+   خليناها تحافظ على نفس النسبة لحد شاشات أصغر بكثير (نقطة انكسار الجوال 768px أدناه تتكفّل
+   بالتكديس الكامل لعمودين) */
+@media (max-width: 1400px) { .kpi-grid-4.kpi-grid-wide { grid-template-columns: 1.3fr 1.3fr 1.3fr 0.75fr 0.75fr; } }
+@media (max-width: 900px) { .kpi-grid-4.kpi-grid-wide { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
+
 .tc-kpi-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
 @media (max-width: 1400px) { .tc-kpi-grid-4 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); } }
 @media (max-width: 600px) { .tc-kpi-grid-4 { grid-template-columns: 1fr 1fr; gap: 12px; } }
+
+/* شبكة 3 بطاقات KPI لكل نطاق (الأمانة/البلديات) بصفحة "مستهدفات وزارة المالية" - عمود مستقل
+   داخل عمود نصف الصفحة (tc-gauge-grid)، فتحتاج عدد أعمدة أقل من الشبكة العامة أعلاه */
+.tc-scope-kpi-block { margin-bottom: 14px; }
+.tc-scope-kpi-title { font-family: "Cairo", sans-serif; font-weight: 800; font-size: .95rem; color: var(--text); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.tc-kpi-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 700px) { .tc-kpi-grid-3 { grid-template-columns: 1fr; gap: 10px; } }
 
 /* ==========================================================================
    بطاقات "Radial Progress" الحديثة — صفحة مقارنة المستهدفات
@@ -781,6 +812,20 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
     .tc-gauge-percent { font-size: 1.05rem; }
 }
 
+/* بطاقة KPI عادية لكن قيمتها حلقة تقدّم صغيرة بدل رقم نصي - تُستخدم لبطاقة "نسبة تحقيق
+   المستهدف" بشبكة الـKPI العادية (بدل بطاقة Radial Progress الكبيرة المستقلة) */
+.tc-kpi-card-ring { align-items: center; }
+.tc-kpi-ring-sm { width: 76px; height: 76px; margin: 6px auto 4px; }
+.tc-kpi-ring-sm .tc-gauge-percent { font-size: 1rem; }
+
+/* لوحة الحلقات الثلاث (محصل/غير محصل/ملغي) بصفحة "لوحة المديونيات" */
+.dbt-ring-panel { display: flex; justify-content: space-around; gap: 10px; flex-wrap: wrap; padding: 10px 4px 4px; }
+.dbt-ring-item { display: flex; flex-direction: column; align-items: center; text-align: center; flex: 1 1 140px; max-width: 180px; }
+.dbt-ring-md { width: 92px; height: 92px; margin: 0 auto 8px; }
+.dbt-ring-md .tc-gauge-percent { font-size: 1.05rem; }
+.dbt-ring-label { font-weight: 800; font-size: .9rem; color: var(--text); }
+.dbt-ring-sub { font-size: .76rem; color: var(--muted); margin-top: 4px; }
+
 .charts-grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 20px; margin-bottom: 18px; }
 @media (max-width: 1100px) { .charts-grid-2 { grid-template-columns: 1fr; } }
 
@@ -791,6 +836,29 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
 
 .tc-charts-2col { grid-template-columns: repeat(2, 1fr); margin-bottom: 18px; }
 @media (max-width: 900px) { .tc-charts-2col { grid-template-columns: 1fr; } }
+
+/* بطاقات الإدارات العامة بصفحة "الإدارات العامة" (الشكل الأول/الثاني) - 3 بطاقات ثابتة
+   بنفس الصف دائمًا على الشاشات الواسعة (بدل تكيّف تلقائي قد يكسر الصف)، وتتقلّص تدريجيًا
+   على الشاشات الأضيق */
+.ai-dept-cards-row { grid-template-columns: repeat(3, 1fr) !important; }
+@media (max-width: 1000px) { .ai-dept-cards-row { grid-template-columns: repeat(2, 1fr) !important; } }
+@media (max-width: 620px)  { .ai-dept-cards-row { grid-template-columns: 1fr !important; } }
+
+/* بطاقات الإدارة العامة (الشكل الأول) قابلة للضغط لتصفية الشكل الثاني - إطار بارز للبطاقة المختارة */
+.ai-dept-card { cursor: pointer; transition: border-color .15s, box-shadow .15s; border: 2px solid transparent; overflow: hidden; }
+.ai-dept-card-selected { border-color: var(--brand-dark, #0E6E61); box-shadow: 0 0 0 2px rgba(14,110,97,.15); }
+
+/* عنوان البطاقة داخل شريط أخضر ممتلئ العرض (يطابق تصميم الصورة المرجعية) بدل عنوان نصي فوق
+   الرسم مباشرة - يمتد لحواف البطاقة عبر هامش سالب يلغي padding البطاقة الأصلي */
+.ai-header-green {
+    background: var(--brand-dark, #0E6E61);
+    margin: -14px -14px 12px;
+    padding: 10px 14px;
+    border-radius: var(--radius-lg, 14px) var(--radius-lg, 14px) 0 0;
+}
+.ai-header-green .chart-title { color: #fff; display: flex; align-items: center; gap: 8px; font-size: .88rem; }
+.ai-header-green .chart-title i { font-size: 1rem; }
+.ai-header-dash { color: rgba(255,255,255,.65); font-weight: 800; }
 
 /* شبكة ثلاثية الأعمدة (بطاقات إدارات فرعية بنفس الوزن البصري) */
 .charts-grid-thirds { grid-template-columns: repeat(3, 1fr); }
@@ -873,7 +941,25 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
 }
 /* بطاقتا معلومات "أعلى إدارة..." بصفحة "بيانات الإدارات" - أيقونة على اليمين جنب النص
    (بدل فوق النص بمنتصف مربّع)، واسم الإدارة كاملاً بلا اقتصاص، بحجم أكبر وأوضح */
+/* دونات "نوع الاستثمار": قائمة الأنواع+العدد على اليمين، والدونات على اليسار */
+.ai-donut-split { display: flex; align-items: center; gap: 14px; }
+.ai-donut-split .echart-box { flex: 1 1 55%; min-width: 0; height: 220px; }
+.ai-donut-list { flex: 1 1 45%; display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.ai-donut-list-item { display: flex; align-items: center; gap: 8px; font-size: .78rem; }
+.ai-donut-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.ai-donut-list-name { color: var(--text); font-weight: 600; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-donut-list-count { color: var(--brand-dark); font-weight: 800; flex-shrink: 0; }
+@media (max-width: 700px) {
+    .ai-donut-split { flex-direction: column; }
+    .ai-donut-split .echart-box { width: 100%; }
+}
+
 .ai-insight-wrap { display: flex; flex-direction: column; gap: 12px; height: 100%; }
+/* استخدام أفقي عند وضع البطاقتين بصف مستقل بعرض كامل (بدل جنب رسم آخر) */
+.ai-insight-wrap.ai-insight-wrap-row { flex-direction: row; }
+@media (max-width: 700px) {
+    .ai-insight-wrap.ai-insight-wrap-row { flex-direction: column; }
+}
 .ai-insight-card {
     flex: 1 1 0; display: flex; align-items: center; gap: 14px;
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
@@ -893,14 +979,9 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
 .tc-small-card .echart-box { height: 200px; }
 .ft-items-card .echart-box { height: 340px; }
 
-/* الصف الأول بصفحة "الطرح": الإدارة العامة (قابل للضغط) + الإدارة الفرعية - نفس الارتفاع
-   بالضبط لكليهما فلا داعي لإلغاء align-items:stretch الافتراضي هذه المرة */
-.tarh-combo-card .echart-box { height: 400px; }
-@media (max-width: 700px) { .tarh-combo-card .echart-box { height: 340px; } }
-
 /* الصف الثاني: عدد الفرص حسب السنة (يسار) + تفاصيل حالات فتح المظاريف للسنة المختارة (يمين) -
    داخل نفس الكارد، بلا تقسيم شبكة صفحة كامل حتى تبقى الحدود بصريًا موحّدة بينهما */
-.tarh-yearstatus-body { display: grid; grid-template-columns: 1fr 280px; gap: 18px; align-items: stretch; }
+.tarh-yearstatus-body { display: grid; grid-template-columns: 1fr 400px; gap: 18px; align-items: stretch; }
 @media (max-width: 800px) { .tarh-yearstatus-body { grid-template-columns: 1fr; } }
 .tarh-yearstatus-card .echart-box { height: 360px; }
 .tarh-yearstatus-detail {
@@ -917,12 +998,13 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
 .tarh-yearstatus-row-value { font-weight: 800; color: var(--brand-dark); white-space: nowrap; }
 .tarh-yearstatus-row-pct { font-weight: 600; color: var(--muted); font-size: .76rem; }
 
-/* شبكة صف مشتركة (عمود عريض + عمود جانبي 390px) - تُستخدَم لصف "عدد الفرص حسب السنة" وصف
-   "نسبة الطرح والإبرام + حالة مدة الفرص" معًا؛ العنصر الأول بترتيب DOM يأخذ العمود العريض */
-.tarh-row2-grid { display: grid; grid-template-columns: 1fr 390px; gap: 12px; align-items: stretch; }
-@media (max-width: 900px) { .tarh-row2-grid { grid-template-columns: 1fr; } }
-.tarh-row2-grid .chart-card { display: flex; flex-direction: column; }
-.tarh-row2-grid .echart-box { flex: 1 1 auto; }
+/* صف "حالة مدة الفرص" + "تتبع الفرصة": القوس بطاقة مضغوطة بعرض ثابت (محتواها قصير: قوس
+   وسطرين نص)، وبطاقة التتبع جنبها تاخذ باقي عرض الصف بالكامل */
+.tarh-duration-row .tarh-duration-card { max-width: 420px; display: flex; flex-direction: column; }
+.tarh-duration-row .tarh-duration-card .echart-box { flex: 1 1 auto; }
+.tarh-track-card { display: flex; flex-direction: column; }
+.tarh-track-body { flex: 1 1 auto; display: flex; flex-direction: column; }
+.tarh-track-body .tarh-opp-list { max-height: 340px; }
 .tarh-line-card .echart-box { height: 280px; }
 .tarh-duration-card .echart-box { height: 230px; }
 @media (max-width: 900px) {
@@ -930,8 +1012,13 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
     .tarh-duration-card .echart-box { height: 220px; }
 }
 
-/* شبكة كروت صفحة "الطرح" - عدد كروت متغيّر (فرص + أنواع عقود)، تلتف تلقائيًا بدل عمود ثابت */
-.tarh-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 22px; }
+/* شبكة كروت صفحة "الطرح" - عدد كروت متغيّر (فرص + أنواع عقود)، تلتف تلقائيًا بدل عمود ثابت.
+   كروت أصغر من الشبكات الأخرى (padding/خط أقل) حتى تتسع الخمسة كروت المعتادة بصف واحد على
+   الشاشات المتوسطة (لابتوب ~1280px) بدل التفاف الكارت الأخير لصف جديد */
+.tarh-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.tarh-kpi-grid .kpi-card { padding: 15px; }
+.tarh-kpi-grid .kpi-card .icon { width: 36px; height: 36px; font-size: 18px; margin-bottom: 10px; }
+.tarh-kpi-grid .kpi-card .value { font-size: 1.3rem; }
 
 /* جدول تصدير صفحة "الطرح" - مخفي على الشاشة (يُبنى للطباعة/PDF فقط عبر زر "طباعة PDF") */
 .tarh-export-table-wrap { display: none; }
@@ -947,33 +1034,11 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
 .tarh-duration-legend { display: flex; gap: 22px; margin-top: 12px; flex-wrap: wrap; }
 .tarh-duration-legend-item { display: flex; align-items: center; gap: 8px; font-size: .85rem; font-weight: 700; color: var(--text); }
 .tarh-duration-dot { width: 12px; height: 12px; border-radius: 4px; flex: none; }
-.tarh-duration-dot.within { background: var(--brand-dark); }
+.tarh-duration-dot.within { background: var(--brand-lime); }
 .tarh-duration-dot.over { background: #D6534A; }
 
 .tarh-duration-avg { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); font-size: .9rem; color: var(--muted); font-weight: 700; }
 .tarh-duration-avg strong { color: var(--brand-dark); font-size: 1.1rem; }
-
-/* ===== نافذة "تتبع الفرصة" (Modal داخل الصفحة) ===== */
-.tarh-modal-overlay {
-    position: fixed; inset: 0; background: rgba(10, 30, 26, 0.55);
-    display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px;
-}
-.tarh-modal {
-    background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
-    width: 100%; max-width: 620px; max-height: 85vh; display: flex; flex-direction: column;
-}
-.tarh-modal-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--surface-alt);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-}
-.tarh-modal-title { font-weight: 800; font-size: 1.05rem; color: var(--brand-dark); display: flex; align-items: center; gap: 8px; }
-.tarh-modal-close {
-    background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1.1rem;
-    width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
-}
-.tarh-modal-close:hover { background: var(--border); color: var(--text); }
-.tarh-modal-body { padding: 18px 20px; border-radius: 0 0 var(--radius-lg) var(--radius-lg); overflow-y: auto; }
 
 /* زر "رجوع لقائمة الفرص" أعلى نتيجة التتبع - يرجع لنفس القائمة المنسدلة الملوّنة بدل إغلاق النافذة */
 .tarh-timeline-back {
@@ -995,7 +1060,7 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
 .tarh-timeline-summary { margin-top: 18px; padding: 14px; border-radius: var(--radius-md); background: var(--surface-alt); text-align: center; }
 .tarh-timeline-summary .total { font-size: 1.3rem; font-weight: 800; color: var(--brand-dark); }
 .tarh-timeline-badge { display: inline-block; margin-top: 6px; padding: 4px 14px; border-radius: 999px; font-weight: 800; font-size: .82rem; }
-.tarh-timeline-badge.within { background: rgba(14,110,97,0.14); color: var(--brand-dark); }
+.tarh-timeline-badge.within { background: rgba(141,198,63,0.18); color: #5F9E1F; }
 .tarh-timeline-badge.over { background: rgba(214,83,74,0.14); color: #A8362E; }
 
 @media (max-width: 600px) {
@@ -1020,6 +1085,103 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
 .tarh-opp-item.over .tarh-opp-item-text { color: var(--danger); }
 .tarh-opp-item.unknown .tarh-opp-item-text { color: var(--muted-2); }
 .tarh-opp-empty { padding: 14px; text-align: center; color: var(--muted); font-size: .85rem; }
+
+/* ==========================================================================
+   درج جانبي عام قابل لإعادة الاستخدام (Data Drawer) - نفس ميكانيكية درج القائمة الجانبية
+   (Overlay + transform:translateX) لكن غير مقيَّد بالجوال/بالتنقّل، لعرض قائمة سجلات قابلة
+   للضغط ← تفاصيل صف واحد ← رجوع (نفس فكرة .tarh-opp-list/.tarh-opp-item أعلاه لكن كدرج
+   منزلق مستقل بأي صفحة)
+   ========================================================================== */
+.data-drawer-overlay {
+    position: fixed; inset: 0; z-index: 1060;
+    background: rgba(4,30,26,0.5);
+    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    opacity: 0; visibility: hidden; transition: opacity .3s var(--ease), visibility .3s var(--ease);
+}
+.data-drawer-overlay.open { opacity: 1; visibility: visible; }
+
+.data-drawer {
+    position: fixed; top: 0; bottom: 0; left: 0;
+    width: 440px; max-width: 92vw;
+    height: 100vh; height: 100dvh;
+    background: var(--surface);
+    border-radius: 0 20px 20px 0;
+    transform: translateX(-106%);
+    transition: transform .32s cubic-bezier(.4, 0, .2, 1);
+    z-index: 1061; box-shadow: 0 24px 60px rgba(4, 30, 26, 0.34);
+    display: flex; flex-direction: column;
+}
+.data-drawer.open { transform: translateX(0); }
+
+.data-drawer-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.data-drawer-title { font-family: "Cairo", sans-serif; font-weight: 800; font-size: 1.02rem; color: var(--brand-dark); }
+.data-drawer-subtitle { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+.data-drawer-close {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border: none; background: rgba(14,110,97,0.08);
+    border-radius: 8px; color: var(--brand-dark); cursor: pointer; transition: all .16s var(--ease); flex-shrink: 0;
+}
+.data-drawer-close:hover { background: var(--brand-dark); color: #fff; }
+
+.data-drawer-body { flex: 1 1 auto; overflow-y: auto; padding: 10px 14px 18px; }
+
+.data-drawer-list-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 10px; cursor: pointer; border-bottom: 1px solid var(--border);
+}
+.data-drawer-list-item:last-child { border-bottom: none; }
+.data-drawer-list-item:hover { background: var(--surface-alt); }
+.data-drawer-list-item .main { min-width: 0; flex: 1; }
+.data-drawer-list-item .main .line1 { font-weight: 800; font-size: .9rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.data-drawer-list-item .main .line2 { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+.data-drawer-list-item .days-badge { font-weight: 800; font-size: .85rem; color: var(--danger); flex-shrink: 0; white-space: nowrap; }
+.data-drawer-empty { padding: 24px 10px; text-align: center; color: var(--muted); font-size: .85rem; }
+
+.data-drawer-back {
+    display: inline-flex; align-items: center; gap: 6px; background: none; border: none;
+    color: var(--brand-dark); font-weight: 700; font-size: .85rem; cursor: pointer; padding: 6px 4px; margin-bottom: 8px;
+}
+.data-drawer-back:hover { text-decoration: underline; }
+
+.data-drawer-detail-row {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    padding: 9px 10px; border-bottom: 1px solid var(--border); font-size: .86rem;
+}
+.data-drawer-detail-row:last-child { border-bottom: none; }
+.data-drawer-detail-row .label { color: var(--muted); flex-shrink: 0; }
+.data-drawer-detail-row .value { font-weight: 700; color: var(--text); text-align: left; }
+.data-drawer-detail-row.danger .value { color: var(--danger); }
+
+@media (max-width: 600px) {
+    .data-drawer { width: 100%; max-width: 100%; border-radius: 0; }
+}
+
+/* بطاقة "مطالبة/مديونية مرتبطة" داخل درج التفاصيل */
+.dbt-linked-card {
+    background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 12px 14px;
+}
+.dbt-linked-title { font-weight: 800; font-size: .85rem; color: var(--brand-dark); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.dbt-linked-line { font-size: .82rem; color: var(--text); margin-top: 2px; }
+
+/* ==========================================================================
+   كروت "حالة المطالبة" بصفحة "لوحة المطالبات التنفيذية" - نفس تصميم كروت الـKPI
+   المستخدَم بكل الموقع (kpi-card)، قابلة للضغط للتصفية بحالة المطالبة، مع إبراز الكارت النشِط
+   ========================================================================== */
+.clx-status-card { cursor: pointer; transition: transform .15s var(--ease), box-shadow .15s var(--ease); }
+.clx-status-card:hover { transform: translateY(-2px); }
+.clx-status-card.active { box-shadow: 0 0 0 2px var(--brand-dark), var(--shadow-sm); }
+
+/* دونات حالات المطالبة داخل الرسمين المركّبين - قائمة نصية واضحة كاملة الأسماء بدل قائمة
+   إيكارتس الداخلية المزدحمة التي تقصّ الأسماء الطويلة */
+.clx-status-legend { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.clx-status-legend-item { display: flex; align-items: center; gap: 8px; font-size: .8rem; }
+.clx-status-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.clx-status-legend-label { color: var(--text); font-weight: 600; flex: 1 1 auto; }
+.clx-status-legend-value { color: var(--brand-dark); font-weight: 800; white-space: nowrap; }
 
 /* وضع "عرض فقط" (النسخة المنشورة للفريق) - إخفاء كل أزرار/نماذج رفع الملفات، مع بقاء
    نقاط الحماية الفعلية على مستوى السيرفر (كل نقطة POST محمية بفحص AppMode.ReadOnly) */
@@ -1526,7 +1688,11 @@ body { min-height: 100vh; display: flex; flex-direction: column; }
 
     .contract-print-header { display: block !important; margin-bottom: 14px; }
     .tarh-export-table-wrap { display: block !important; }
-    .contract-print-logo-row { font-family: "Cairo", sans-serif; font-weight: 800; font-size: 1.1rem; color: #0E6E61; margin-bottom: 4px; }
+    .contract-print-logo-row { margin-bottom: 6px; }
+    .contract-print-logo-img { height: 46px; width: auto; }
+    .contract-print-dept-lines { margin-bottom: 6px; }
+    .cp-dept-line-1 { font-family: "Cairo", sans-serif; font-weight: 800; font-size: .95rem; color: #0E6E61; }
+    .cp-dept-line-2 { font-family: "Cairo", sans-serif; font-weight: 600; font-size: .8rem; color: #6E8A86; margin-top: 2px; }
     .contract-print-title { font-weight: 700; font-size: .95rem; color: #16332F; }
     .contract-print-date { font-size: .8rem; color: #6B857F; margin-top: 2px; }
 
@@ -1567,4 +1733,72 @@ body { min-height: 100vh; display: flex; flex-direction: column; }
     .contract-table.with-number th:nth-child(5), .contract-table.with-number td:nth-child(5) { width: 11%; }
     .contract-table.with-number th:nth-child(6), .contract-table.with-number td:nth-child(6) { width: 16%; }
     .contract-table.with-number th:nth-child(7), .contract-table.with-number td:nth-child(7) { width: 15%; }
+}
+
+/* ==========================================================================
+   رسم "أداء الإيرادات حسب نوع الإيراد" - يُدرَج مباشرة بعد بطاقات الـKPI، قبل بقية الرسوم.
+   أخضر داكن/فاتح + رمادي فاتح فقط، بطاقات وصفوف بحواف دائرية وظل خفيف بنفس هوية الداشبورد.
+   ========================================================================== */
+.rp-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px 18px;
+    box-shadow: var(--shadow-xs);
+    margin-bottom: 18px;
+}
+
+.rp-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.rp-title { font-family: "Cairo", sans-serif; font-size: .98rem; font-weight: 800; color: var(--brand-dark); }
+.rp-subtitle { font-size: .76rem; color: var(--muted); margin-top: 2px; }
+
+.rp-source-toggle { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rp-source-label { display: flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700; color: var(--muted); }
+.rp-toggle-group { display: flex; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 9px; padding: 2px; gap: 2px; }
+.rp-toggle-btn {
+    padding: 5px 13px; border: none; background: transparent; border-radius: 7px;
+    font-family: "Cairo", sans-serif; font-weight: 700; font-size: .78rem; color: var(--muted);
+    cursor: pointer; transition: all .16s var(--ease);
+}
+.rp-toggle-btn:hover { color: var(--brand-dark); }
+.rp-toggle-btn.active {
+    background: linear-gradient(135deg, var(--brand-dark), var(--brand-mid));
+    color: #fff; box-shadow: var(--shadow-xs);
+}
+
+/* بطاقات "المحصل الحالي/السابق ونسبة النمو" أعلى قسم أداء الإيرادات */
+.rp-growth-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+.rp-growth-card {
+    display: flex; align-items: center; gap: 10px; background: var(--surface-alt);
+    border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 14px;
+}
+.rp-growth-icon {
+    width: 38px; height: 38px; border-radius: 10px; background: rgba(14,110,97,0.08); color: var(--brand-dark);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 17px;
+}
+.rp-growth-label { font-size: .72rem; color: var(--muted); font-weight: 700; }
+.rp-growth-value { font-size: 1rem; font-weight: 800; color: var(--text); margin-top: 2px; }
+.rp-growth-sar { width: 13px; height: 13px; }
+.rp-growth-card.rp-growth-up .rp-growth-icon { background: rgba(14,110,97,0.12); color: var(--brand-dark); }
+.rp-growth-card.rp-growth-up .rp-growth-value { color: var(--brand-dark); }
+.rp-growth-card.rp-growth-down .rp-growth-icon { background: rgba(214,83,74,0.12); color: #D6534A; }
+.rp-growth-card.rp-growth-down .rp-growth-value { color: #D6534A; }
+@media (max-width: 700px) {
+    .rp-growth-cards { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 700px) {
+    .rp-header { flex-direction: column; }
+}
+
+/* أشكال "أداء الإيرادات" جنب بعض (مستهدف/محصل + دونات + نسبة المتبقي) بدل شكل واحد مزدحم */
+.rp-charts-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 14px; }
+.rp-charts-row.rp-charts-row-3 { grid-template-columns: repeat(3, 1fr); }
+.rp-chart-col-title { font-size: .8rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+@media (max-width: 1100px) {
+    .rp-charts-row.rp-charts-row-3 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 900px) {
+    .rp-charts-row { grid-template-columns: 1fr; }
+    .rp-charts-row.rp-charts-row-3 { grid-template-columns: 1fr; }
 }

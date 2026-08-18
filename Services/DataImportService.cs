@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using ExcelDashboard.Data;
 using ExcelDashboard.Models;
@@ -87,6 +88,16 @@ namespace ExcelDashboard.Services
         private const string InvestorColumnName = "المستثمر";
         private static readonly string[] InvestorColumnKeywords = { "المستثمر", "investor" };
 
+        // نوع الاستثمار / حالة العقد / رقم الدفعة - أعمدة صفحة "الإدارات العامة" (بند الاستثمار
+        // بالأمانة): دونات "نوع الاستثمار" وفلترها، رسم "حالة العقد"، وتصدير Excel/PDF
+        private const string InvestmentTypeColumnName = "نوع الاستثمار";
+        private static readonly string[] InvestmentTypeColumnKeywords = { "نوع الاستثمار" };
+        private const string ContractStatusColumnName = "حالة العقد";
+        private static readonly string[] ContractStatusColumnKeywords = { "حالة العقد" };
+        // لا يوجد عمود اسمه "رقم الدفعة" حرفيًا بالملف الحالي - أقرب عمود بنفس المعنى هو "رقم
+        // إيفاء" (رقم التسوية/الدفع) - نبحث عن كليهما احتياطًا لتغيّر اسم العمود مستقبلاً
+        private static readonly string[] PaymentNumberColumnKeywords = { "رقم إيفاء", "رقم الدفعة", "رقم ايفاء" };
+
         // عمود رقم الفاتورة - يُستخدم بصفحة "البحث برقم العقد"
         private const string InvoiceNumberColumnName = "رقم الفاتوره";
         private static readonly string[] InvoiceNumberColumnKeywords = { "رقم الفاتوره", "رقم الفاتورة", "invoice" };
@@ -94,10 +105,6 @@ namespace ExcelDashboard.Services
         // عمود تاريخ الإنشاء بالضبط (مستقل عن عمود التاريخ المستخدم بالرسم الشهري) - لصفحة
         // "البحث برقم العقد"
         private const string CreatedDateColumnName = "تاريخ الإنشاء";
-
-        // عمود الربع (Q1/Q2/Q3/Q4) - يُستخدم لاحقًا بقائمة التصفية التفاعلية بالداشبورد
-        private const string QuarterColumnName = "الربع";
-        private static readonly string[] QuarterColumnKeywords = { "الربع", "quarter" };
 
         // عمودا الإدارة العامة/الفرعية - لتوجيه صفوف "استثمار" لمستوى الإدارات في القائمة الجانبية
         // (مثل "الإدارة العامة لمحافظ الاستثمارات التنموية" ثم "الاستثمارات الصحية" تحتها)
@@ -442,13 +449,15 @@ namespace ExcelDashboard.Services
                 ?? allColumnNames.FirstOrDefault(c => Normalize(c) == Normalize(FallbackDateColumnName) && dateCols.Contains(c))
                 ?? dateCols.FirstOrDefault();
 
-            // 7) عمود رقم العقد (لمربع البحث بالداشبورد)
-            string? contractCol = allColumnNames.FirstOrDefault(c => Normalize(c) == Normalize(ContractNumberColumnName))
-                ?? FindColumn(textCols, ContractNumberColumnKeywords);
-
-            // 8) عمود الربع (لقائمة التصفية بالداشبورد)
-            string? quarterCol = allColumnNames.FirstOrDefault(c => Normalize(c) == Normalize(QuarterColumnName))
-                ?? FindColumn(textCols, QuarterColumnKeywords);
+            // 7) عمود رقم العقد (لمربع البحث بالداشبورد) - يُحتمل أن يكون العمود رقميًا بالملف
+            // (أرقام عقود بلا حروف) فيُصنَّف ضمن numericCols لا textCols، لذا نبحث بكليهما.
+            // بعض الملفات (مثل بيانات "استثمار") فيها عمودان بنفس الاسم "رقم العقد" - الأول عام
+            // وفارغ غالبًا، والأخير هو الفعلي المعبّأ بالقيم الحقيقية (تأكيد صريح من المستخدمة:
+            // "في البداية عندنا رقم عقد ولا تشوفها، فقط شوف آخر واحد") - LastOrDefault بدل
+            // FirstOrDefault يضمن أخذ العمود الأخير المطابق بالاسم بالضبط
+            string? contractCol = allColumnNames.LastOrDefault(c => Normalize(c) == Normalize(ContractNumberColumnName))
+                ?? FindColumn(textCols, ContractNumberColumnKeywords)
+                ?? FindColumn(numericCols, ContractNumberColumnKeywords);
 
             // 9) عمودا الإدارة العامة/الفرعية (لتوجيه صفوف "استثمار" لمستوى الإدارات بالقائمة الجانبية)
             string? deptGeneralCol = allColumnNames.FirstOrDefault(c => Normalize(c) == Normalize(DeptGeneralColumnName))
@@ -475,6 +484,17 @@ namespace ExcelDashboard.Services
             // لتفادي التقاط عمود المالية بالخطأ ضمن نفس المطابقة التقريبية)
             string? targetBaladiyahCol = FindColumn(numericCols, TargetBaladiyahColumnKeywords);
             string? targetFinanceCol = FindColumn(numericCols.Where(c => c != targetBaladiyahCol).ToList(), TargetFinanceColumnKeywords);
+
+            // 15) أعمدة صفحة "الإدارات العامة" (نوع الاستثمار / حالة العقد / اسم المستثمر / رقم الدفعة)
+            string? investmentTypeCol = allColumnNames.FirstOrDefault(c => Normalize(c) == Normalize(InvestmentTypeColumnName))
+                ?? FindColumn(textCols, InvestmentTypeColumnKeywords);
+            string? contractStatusCol = allColumnNames.FirstOrDefault(c => Normalize(c) == Normalize(ContractStatusColumnName))
+                ?? FindColumn(textCols, ContractStatusColumnKeywords);
+            string? investorCol = allColumnNames.FirstOrDefault(c => Normalize(c) == Normalize(InvestorColumnName))
+                ?? FindColumn(textCols, InvestorColumnKeywords);
+            // قد يُصنَّف "رقم إيفاء" كعمود رقمي حسب محتواه بالملف - نبحث بكلا القائمتين احتياطًا
+            string? paymentNumberCol = FindColumn(textCols, PaymentNumberColumnKeywords)
+                ?? FindColumn(numericCols, PaymentNumberColumnKeywords);
 
             var recordsBySection = new Dictionary<int, List<DashboardRecord>>();
             var unmatchedValues = new HashSet<string>();
@@ -785,6 +805,16 @@ namespace ExcelDashboard.Services
                 // لهذا الصف يبقى فارغًا (بدون أي بديل تلقائي مثل اسم المستثمر أو غيره)
                 string? contractName = contractNameCol != null ? GetString(row, contractNameCol) : null;
 
+                DateTime? recordDateVal = dateCol != null ? GetDate(row, dateCol) : null;
+                DateTime? createdDateVal = createdDateCol != null ? GetDate(row, createdDateCol) : null;
+
+                // "الربع"/"الشهر" يُحسبان دائمًا من الكود (لا يُقرآن كنص خام من الملف): للفواتير
+                // المحصّلة من "تاريخ الدفع" (متى فعليًا دخل المبلغ)، وغير المحصّلة من "تاريخ
+                // الإنشاء" (لا يوجد تاريخ دفع فعلي لها بعد) - حتى تبقى الفلترة موثوقة بصرف النظر
+                // عمّا كُتب يدويًا بعمود "الربع" بالملف الأصلي (إن وُجد أصلاً)
+                DateTime? quarterBasisDate = isCollected ? recordDateVal : createdDateVal;
+                int? quarterBasisMonth = quarterBasisDate?.Month;
+
                 var record = new DashboardRecord
                 {
                     SectionId = matchedSection.Id,
@@ -798,9 +828,14 @@ namespace ExcelDashboard.Services
                     ItemNumber = rawItemNumber,
                     DeptGeneral = string.IsNullOrWhiteSpace(rawDeptGeneral) ? null : rawDeptGeneral,
                     DeptSub = string.IsNullOrWhiteSpace(rawDeptSub) ? null : rawDeptSub,
-                    Quarter = quarterCol != null ? GetString(row, quarterCol)?.Trim() : null,
-                    RecordDate = dateCol != null ? GetDate(row, dateCol) : null,
-                    CreatedDate = createdDateCol != null ? GetDate(row, createdDateCol) : null,
+                    InvestmentType = investmentTypeCol != null ? GetString(row, investmentTypeCol)?.Trim() : null,
+                    ContractStatus = contractStatusCol != null ? GetString(row, contractStatusCol)?.Trim() : null,
+                    InvestorName = investorCol != null ? GetString(row, investorCol)?.Trim() : null,
+                    PaymentNumber = paymentNumberCol != null ? GetString(row, paymentNumberCol)?.Trim() : null,
+                    Quarter = quarterBasisMonth.HasValue ? "Q" + (((quarterBasisMonth.Value - 1) / 3) + 1) : null,
+                    Month = quarterBasisMonth,
+                    RecordDate = recordDateVal,
+                    CreatedDate = createdDateVal,
                     TotalValue = value,
                     CollectedValue = isCollected ? value : (status != null ? 0 : null),
                     UncollectedValue = !isCollected ? value : (status != null ? 0 : null),
@@ -889,7 +924,7 @@ namespace ExcelDashboard.Services
         }
 
         // داخلية (internal) بدل خاصة حتى تُعاد استخدامها من خدمات الاستيراد الأخرى (مثل
-        // ClaimsDebtsImportService) دون تكرار نفس منطق تطبيع النصوص العربية
+        // DebtInvoiceImportService/ClaimExecutionImportService) دون تكرار نفس منطق تطبيع النصوص العربية
         internal static string Normalize(string value)
         {
             return System.Text.RegularExpressions.Regex.Replace(value.Trim(), @"\s+", " ")
@@ -908,7 +943,7 @@ namespace ExcelDashboard.Services
         }
 
         // داخلية (internal) بدل خاصة حتى تُعاد استخدامها من خدمات الاستيراد الأخرى (مثل
-        // ClaimsDebtsImportService) دون تكرار نفس منطق قراءة قيم الصف الخام
+        // DebtInvoiceImportService/ClaimExecutionImportService) دون تكرار نفس منطق قراءة قيم الصف الخام
         internal static string? FindColumn(List<string> columns, string[] keywords)
         {
             return columns.FirstOrDefault(c =>
@@ -934,7 +969,9 @@ namespace ExcelDashboard.Services
         internal static DateTime? GetDate(Dictionary<string, object?> row, string col)
         {
             if (!row.TryGetValue(col, out var val) || val == null) return null;
-            return DateTime.TryParse(val.ToString(), out var parsed) ? parsed : null;
+            // InvariantCulture إلزامي (راجع الشرح بـExcelDashboardService.cs عند بناء rowDict) - بدونها
+            // يفشل التحليل بالكامل على أنظمة التشغيل بثقافة عربية سعودية (تقويم هجري افتراضيًا)
+            return DateTime.TryParse(val.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) ? parsed : null;
         }
 
         /// <summary>مسافة Levenshtein القياسية بين نصّين (عدد أقل عمليات إدراج/حذف/استبدال حرف واحد لتحويل أحدهما للآخر).</summary>

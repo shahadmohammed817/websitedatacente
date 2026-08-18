@@ -4,14 +4,33 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ExcelDashboard.Services
 {
-    /// <summary>صف إدارة فرعية واحدة (عدد الفواتير + القيمة، مقسّمة محصل/غير محصل)</summary>
+    /// <summary>صف إدارة فرعية واحدة (عدد الفواتير + القيمة، مقسّمة محصل/غير محصل + قائم/جديد)</summary>
     public class SubDeptRow
     {
         public string Name { get; set; } = string.Empty;
+        /// <summary>الإدارة العامة التابعة لها - لتصفية "الإدارات الفرعية" بالمتصفح عند الضغط على إدارة عامة بلا طلب شبكة إضافي</summary>
+        public string? DeptGeneral { get; set; }
         public int InvoiceCount { get; set; }
         public decimal TotalValue { get; set; }
         public decimal PaidValue { get; set; }
         public decimal UnpaidValue { get; set; }
+        /// <summary>قيمة العقود لكل حالة عقد (قائم/جديد...) داخل هذه الإدارة الفرعية</summary>
+        public Dictionary<string, decimal> ContractStatusValues { get; set; } = new();
+    }
+
+    /// <summary>صف نوع استثمار واحد (عمود "نوع الاستثمار") - لدونات صفحة "الإدارات العامة"</summary>
+    public class InvestmentTypeRow
+    {
+        public string Name { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal Value { get; set; }
+    }
+
+    /// <summary>صف حالة عقد واحدة (عمود "حالة العقد"، مثل "قائم"/"جديد") - لرسم "حالة العقد"</summary>
+    public class ContractStatusRow
+    {
+        public string Name { get; set; } = string.Empty;
+        public int Count { get; set; }
     }
 
     /// <summary>بيانات صفحة "بيانات الأمانة" (بند الاستثمار)</summary>
@@ -28,31 +47,41 @@ namespace ExcelDashboard.Services
         public decimal UnpaidValue { get; set; }
         public decimal CollectionRatePercent { get; set; }
 
-        // ===== 3) Stacked Column حسب الإدارة العامة (محصل/غير محصل) =====
+        // ===== أسماء الإدارات العامة (لا رسم خاص بها بعد الآن - تبقى فقط لتحديد الإدارة
+        // الافتراضية لرسم "الإدارات الفرعية" عند عدم اختيار فلتر إدارة صراحةً) =====
         public List<string> DeptGeneralLabels { get; set; } = new();
-        public List<decimal> DeptGeneralPaidValues { get; set; } = new();
-        public List<decimal> DeptGeneralUnpaidValues { get; set; } = new();
-        public List<int> DeptGeneralInvoiceCounts { get; set; } = new();
 
-        // ===== 4) اتجاه التحصيل الشهري =====
+        // ===== "الشكل الأول": لكل إدارة عامة - عدد وقيمة العقود حسب حالة العقد (قائم/جديد...):
+        // ارتفاع الأعمدة = القيمة، والعدد يُكتب داخل كل عمود كتسمية - كلاهما بنفس ترتيب
+        // DeptGeneralLabels =====
+        public List<Dictionary<string, int>> DeptGeneralContractStatusCounts { get; set; } = new();
+        public List<Dictionary<string, decimal>> DeptGeneralContractStatusValues { get; set; } = new();
+        public List<decimal> DeptGeneralCollectionRatePercent { get; set; } = new();
+
+        // ===== اتجاه التحصيل الشهري =====
         public List<string> MonthLabels { get; set; } = new();
         public List<decimal> MonthCollectedValues { get; set; } = new();
         public List<decimal> MonthTotalValues { get; set; } = new();
 
-        // ===== 5) Donut: توزيع البنود حسب التصنيف (استثمار / تأجير مؤقت) =====
-        public int InvestmentInvoiceCount { get; set; }
-        public decimal InvestmentValue { get; set; }
-        public int TempLeaseInvoiceCount { get; set; }
-        public decimal TempLeaseValue { get; set; }
+        // ===== Donut: توزيع البنود حسب "نوع الاستثمار" =====
+        public List<InvestmentTypeRow> InvestmentTypeBreakdown { get; set; } = new();
+        /// <summary>كل قيم "نوع الاستثمار" الموجودة (بصرف النظر عن الفلاتر الحالية) - لتعبئة قائمة الفلتر</summary>
+        public List<string> InvestmentTypeOptions { get; set; } = new();
 
-        // ===== 6) Stacked Horizontal Bar: كل الإدارات الفرعية (قائمة واحدة مسطّحة، مرتّبة تنازليًا) =====
+        // ===== رسم "حالة العقد" =====
+        public List<ContractStatusRow> ContractStatusBreakdown { get; set; } = new();
+
+        // ===== Stacked Horizontal Bar: كل الإدارات الفرعية (قائمة واحدة مسطّحة، مرتّبة تنازليًا) =====
         public List<SubDeptRow> SubDepartments { get; set; } = new();
 
-        // ===== 7) بطاقتا المعلومات الذكية =====
+        // ===== بطاقتا المعلومات الذكية: أعلى/أقل إدارة تحصيلاً - بناءً على قيمة المحصّل فعليًا
+        // (وليس نسبة التحصيل)، بنفس مبدأ "أكثر/أقل بلدية تفاعلاً" بصفحة البلديات =====
         public string? TopCollectionRateDept { get; set; }
         public decimal TopCollectionRatePercent { get; set; }
-        public string? TopInvoiceCountDept { get; set; }
-        public int TopInvoiceCountAmount { get; set; }
+        public decimal TopCollectionValue { get; set; }
+        public string? BottomCollectionRateDept { get; set; }
+        public decimal BottomCollectionRatePercent { get; set; }
+        public decimal BottomCollectionValue { get; set; }
     }
 
     public interface IAmanahInvestmentDashboardService
@@ -60,15 +89,32 @@ namespace ExcelDashboard.Services
         /// <summary>
         /// deptGeneral/deptSub: عند تمريرهما (من صندوق الفلاتر بصفحة "بنود الأمانة") تُقيَّد كل
         /// المؤشرات والرسوم على هذه الإدارة العامة/الفرعية فقط (Cross Filtering) - مطابقة تامة
-        /// مع عمودي DeptGeneral/DeptSub الخام المخزَّنين على كل سجل. sectionIds مُبقًى للتوافق
-        /// فقط (غير مستخدَم من الواجهة الحالية). null للكل يعني كل بند الاستثمار بالأمانة دون تقييد.
+        /// مع عمودي DeptGeneral/DeptSub الخام المخزَّنين على كل سجل. investmentType: نفس فكرة
+        /// deptGeneral لكن على عمود "نوع الاستثمار" (يغذّي دونات ذلك الرسم). sectionIds مُبقًى
+        /// للتوافق فقط (غير مستخدَم من الواجهة الحالية). null للكل يعني كل بند الاستثمار بالأمانة
+        /// دون تقييد.
         /// </summary>
-        Task<AmanahInvestmentDashboardData> GetDataAsync(string? quarter = null, string? contractNumber = null, List<int>? sectionIds = null, string? deptGeneral = null, string? deptSub = null);
+        Task<AmanahInvestmentDashboardData> GetDataAsync(string? quarter = null, string? contractNumber = null, List<int>? sectionIds = null, string? deptGeneral = null, string? deptSub = null, string? investmentType = null);
+
+        /// <summary>صفوف تصدير صفحة "الإدارات العامة" (Excel/PDF) - نفس تصفية GetDataAsync بالضبط</summary>
+        Task<List<AmanahInvestmentExportRow>> GetExportRowsAsync(string? quarter = null, string? contractNumber = null, List<int>? sectionIds = null, string? deptGeneral = null, string? deptSub = null, string? investmentType = null);
+    }
+
+    /// <summary>صف تصدير واحد لصفحة "الإدارات العامة" - رقم العقد/اسم المستثمر/تاريخ الإنشاء/تاريخ الدفع/رقم الدفعة/القيمة/المحفظة الفرعية</summary>
+    public class AmanahInvestmentExportRow
+    {
+        public string? ContractNumber { get; set; }
+        public string? InvestorName { get; set; }
+        public DateTime? CreatedDate { get; set; }
+        public DateTime? RecordDate { get; set; }
+        public string? PaymentNumber { get; set; }
+        public decimal? TotalValue { get; set; }
+        public string? SubPortfolio { get; set; }
     }
 
     /// <summary>
-    /// يبني لوحة "بيانات الأمانة" حصريًا من DashboardRecord حيث المنطقة = أمانة
-    /// (Section.Scope = Amanah) وتصنيف البند = "استثمار"، معتمدًا على عمودي "الإدارة العامة"/
+    /// يبني لوحة "الإدارات العامة" من DashboardRecord حيث المنطقة = أمانة (Section.Scope = Amanah)
+    /// وتصنيف البند = "استثمار" أو "تأجير مؤقت"، معتمدًا على عمودي "الإدارة العامة"/
     /// "الإدارة الفرعية" الخام المُخزَّنين مباشرة على كل سجل (DeptGeneral/DeptSub) لتحديد
     /// إدارته - وليس على شجرة الأقسام (Section)، لأن البنود الفرعية الفعلية المستوردة من الملف
     /// (مثل "تأجير مباني تجارية") لا تحمل بنودًا فرعية خاصة بها بشجرة الأقسام. وعلى
@@ -89,11 +135,16 @@ namespace ExcelDashboard.Services
             _db = db;
         }
 
-        public async Task<AmanahInvestmentDashboardData> GetDataAsync(string? quarter = null, string? contractNumber = null, List<int>? sectionIds = null, string? deptGeneral = null, string? deptSub = null)
+        /// <summary>
+        /// يبني استعلام DashboardRecords مُصفّى حسب نفس معايير GetDataAsync/GetExportRowsAsync
+        /// (النطاق + الأقسام المُختارة + الإدارة العامة/الفرعية + نوع الاستثمار + الربع + رقم
+        /// العقد) - يُستخدم من كلتا الدالتين حتى تبقى نتائج اللوحة والتصدير متطابقة تمامًا.
+        /// </summary>
+        private async Task<IQueryable<DashboardRecord>> BuildFilteredQueryAsync(
+            string? quarter, string? contractNumber, List<int>? sectionIds,
+            string? deptGeneral, string? deptSub, string? investmentType)
         {
-            var result = new AmanahInvestmentDashboardData();
-
-            var allAmanahSections = await _db.Sections
+            var allAmanahSections = await _db.Sections.AsNoTracking()
                 .Where(s => s.Scope == ScopeType.Amanah)
                 .Select(s => new { s.Id, s.NameAr, s.ParentSectionId })
                 .ToListAsync();
@@ -123,8 +174,8 @@ namespace ExcelDashboard.Services
                 }
             }
 
-            IQueryable<DashboardRecord> query = _db.DashboardRecords
-                .Where(r => r.Classification == "استثمار" && amanahSectionIds.Contains(r.SectionId));
+            IQueryable<DashboardRecord> query = _db.DashboardRecords.AsNoTracking()
+                .Where(r => (r.Classification == "استثمار" || r.Classification == "تأجير مؤقت") && amanahSectionIds.Contains(r.SectionId));
 
             if (scopeSectionIds != null)
                 query = query.Where(r => scopeSectionIds.Contains(r.SectionId));
@@ -135,6 +186,9 @@ namespace ExcelDashboard.Services
             if (!string.IsNullOrWhiteSpace(deptSub))
                 query = query.Where(r => r.DeptSub == deptSub);
 
+            if (!string.IsNullOrWhiteSpace(investmentType))
+                query = query.Where(r => r.InvestmentType == investmentType);
+
             if (!string.IsNullOrWhiteSpace(quarter))
                 query = query.Where(r => r.Quarter == quarter);
 
@@ -144,8 +198,28 @@ namespace ExcelDashboard.Services
                 query = query.Where(r => r.ContractNumber != null && r.ContractNumber.Contains(term));
             }
 
+            return query;
+        }
+
+        public async Task<AmanahInvestmentDashboardData> GetDataAsync(string? quarter = null, string? contractNumber = null, List<int>? sectionIds = null, string? deptGeneral = null, string? deptSub = null, string? investmentType = null)
+        {
+            var result = new AmanahInvestmentDashboardData();
+
+            var query = await BuildFilteredQueryAsync(quarter, contractNumber, sectionIds, deptGeneral, deptSub, investmentType);
+
+            // قائمة "نوع الاستثمار" لتعبئة الفلتر: من نفس النطاق (الأمانة + تصنيف "استثمار" +
+            // الأقسام المختارة) لكن بلا تصفية نوع الاستثمار/الإدارة/الربع نفسها، حتى تبقى القائمة
+            // ثابتة الخيارات بصرف النظر عن الفلتر النشط حاليًا
+            var unfilteredForOptions = await BuildFilteredQueryAsync(null, null, sectionIds, null, null, null);
+            result.InvestmentTypeOptions = await unfilteredForOptions
+                .Where(r => r.InvestmentType != null && r.InvestmentType != "")
+                .Select(r => r.InvestmentType!)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToListAsync();
+
             var records = await query
-                .Select(r => new { r.SectionId, r.TotalValue, r.CollectedValue, r.UncollectedValue, r.RecordDate, r.DeptGeneral, r.DeptSub })
+                .Select(r => new { r.SectionId, r.TotalValue, r.CollectedValue, r.UncollectedValue, r.RecordDate, r.DeptGeneral, r.DeptSub, r.InvestmentType, r.ContractStatus })
                 .ToListAsync();
 
             result.HasData = records.Count > 0;
@@ -190,27 +264,24 @@ namespace ExcelDashboard.Services
                     Value = r.TotalValue ?? 0,
                     PaidValue = isUnpaid ? 0 : (r.CollectedValue ?? r.TotalValue ?? 0),
                     UnpaidValue = isUnpaid ? (r.UncollectedValue ?? 0) : 0,
-                    r.RecordDate
+                    r.RecordDate,
+                    InvestmentType = !string.IsNullOrWhiteSpace(r.InvestmentType) ? r.InvestmentType!.Trim() : null,
+                    ContractStatus = !string.IsNullOrWhiteSpace(r.ContractStatus) ? r.ContractStatus!.Trim() : null
                 };
             }).ToList();
 
-            // ==================== 3) Stacked Column حسب الإدارة العامة ====================
+            // ==================== أسماء الإدارات العامة (لتحديد الإدارة الافتراضية برسم
+            // "الإدارات الفرعية" فقط - لا رسم عمود مكدَّس مخصّص لها بعد الآن، لكن التجميع نفسه
+            // يبقى لازمًا لبطاقة "أعلى إدارة في نسبة التحصيل" أدناه) ====================
             var knownDeptOrder = new[] { "تجاري", "تنمو", "خدما" };
             var byDeptGeneral = classified
                 .Where(x => x.DeptGeneral != null)
                 .GroupBy(x => x.DeptGeneral!)
                 .OrderBy(g => Array.FindIndex(knownDeptOrder, k => g.Key.Contains(k)) is var idx && idx >= 0 ? idx : 99)
                 .ToList();
+            result.DeptGeneralLabels = byDeptGeneral.Select(g => g.Key).ToList();
 
-            foreach (var g in byDeptGeneral)
-            {
-                result.DeptGeneralLabels.Add(g.Key);
-                result.DeptGeneralPaidValues.Add(g.Sum(x => x.PaidValue));
-                result.DeptGeneralUnpaidValues.Add(g.Sum(x => x.UnpaidValue));
-                result.DeptGeneralInvoiceCounts.Add(g.Count());
-            }
-
-            // ==================== 4) اتجاه التحصيل الشهري ====================
+            // ==================== اتجاه التحصيل الشهري ====================
             var byMonth = classified
                 .Where(x => x.RecordDate.HasValue)
                 .GroupBy(x => new { x.RecordDate!.Value.Year, x.RecordDate!.Value.Month })
@@ -227,30 +298,45 @@ namespace ExcelDashboard.Services
             result.MonthCollectedValues = byMonth.Select(x => x.Collected).ToList();
             result.MonthTotalValues = byMonth.Select(x => x.Total).ToList();
 
-            // ==================== 5) Donut: استثمار (له إدارة) مقابل تأجير مؤقت (بلا إدارة) ====================
-            var investmentRows = classified.Where(x => !x.IsTempLease).ToList();
-            var tempLeaseRows = classified.Where(x => x.IsTempLease).ToList();
-            result.InvestmentInvoiceCount = investmentRows.Count;
-            result.InvestmentValue = investmentRows.Sum(x => x.Value);
-            result.TempLeaseInvoiceCount = tempLeaseRows.Count;
-            result.TempLeaseValue = tempLeaseRows.Sum(x => x.Value);
+            // ==================== Donut: توزيع البنود حسب "نوع الاستثمار" ====================
+            result.InvestmentTypeBreakdown = classified
+                .Where(x => x.InvestmentType != null)
+                .GroupBy(x => x.InvestmentType!)
+                .Select(g => new InvestmentTypeRow { Name = g.Key, Count = g.Count(), Value = g.Sum(x => x.Value) })
+                .OrderByDescending(x => x.Value)
+                .ToList();
 
-            // ==================== 6) الإدارات الفرعية (قائمة مسطّحة واحدة) ====================
+            // ==================== رسم "حالة العقد" ====================
+            // ديناميكي حسب القيم الفعلية الموجودة بالعمود (قائم/جديد الآن، أي قيمة تُضاف لاحقًا
+            // للملف تظهر تلقائيًا بلا تعديل كود) - تُستبعد السجلات بلا قيمة (لم تُعبَّأ بعد)
+            result.ContractStatusBreakdown = classified
+                .Where(x => x.ContractStatus != null)
+                .GroupBy(x => x.ContractStatus!)
+                .Select(g => new ContractStatusRow { Name = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .ToList();
+
+            // ==================== الإدارات الفرعية (قائمة مسطّحة، بالإدارة العامة التابعة لها) ====================
             result.SubDepartments = classified
                 .Where(x => !string.IsNullOrWhiteSpace(x.SubDept))
-                .GroupBy(x => x.SubDept!)
+                .GroupBy(x => new { x.DeptGeneral, SubDept = x.SubDept! })
                 .Select(g => new SubDeptRow
                 {
-                    Name = g.Key,
+                    Name = g.Key.SubDept,
+                    DeptGeneral = g.Key.DeptGeneral,
                     InvoiceCount = g.Count(),
                     TotalValue = g.Sum(x => x.Value),
                     PaidValue = g.Sum(x => x.PaidValue),
-                    UnpaidValue = g.Sum(x => x.UnpaidValue)
+                    UnpaidValue = g.Sum(x => x.UnpaidValue),
+                    ContractStatusValues = g
+                        .Where(x => x.ContractStatus != null)
+                        .GroupBy(x => x.ContractStatus!)
+                        .ToDictionary(sg => sg.Key, sg => sg.Sum(x => x.Value))
                 })
                 .OrderByDescending(x => x.TotalValue)
                 .ToList();
 
-            // ==================== 7) بطاقتا المعلومات الذكية (بين الإدارات العامة المعروفة) ====================
+            // ==================== بطاقة المعلومات الذكية (بين الإدارات العامة المعروفة) ====================
             var deptStats = byDeptGeneral.Select(g =>
             {
                 var total = g.Sum(x => x.Value);
@@ -258,23 +344,61 @@ namespace ExcelDashboard.Services
                 return new
                 {
                     Name = g.Key,
-                    InvoiceCount = g.Count(),
+                    Paid = paid,
                     CollectionRate = total > 0 ? Math.Round(paid / total * 100, 1) : 0
                 };
             }).ToList();
 
             if (deptStats.Count > 0)
             {
-                var topRate = deptStats.OrderByDescending(x => x.CollectionRate).First();
-                result.TopCollectionRateDept = topRate.Name;
-                result.TopCollectionRatePercent = topRate.CollectionRate;
+                // الترتيب بناءً على قيمة المحصّل الفعلية (مو نسبة التحصيل) - طلب صريح من
+                // المستخدمة حتى تعكس البطاقة حجم الأعمال الحقيقي، لا نسبة قد تتصدّرها إدارة
+                // بحجم أعمال ضئيل لمجرد أن كل سجلاتها القليلة مسدَّدة بالكامل
+                var topByValue = deptStats.OrderByDescending(x => x.Paid).First();
+                result.TopCollectionRateDept = topByValue.Name;
+                result.TopCollectionRatePercent = topByValue.CollectionRate;
+                result.TopCollectionValue = topByValue.Paid;
 
-                var topCount = deptStats.OrderByDescending(x => x.InvoiceCount).First();
-                result.TopInvoiceCountDept = topCount.Name;
-                result.TopInvoiceCountAmount = topCount.InvoiceCount;
+                var bottomByValue = deptStats.OrderBy(x => x.Paid).First();
+                result.BottomCollectionRateDept = bottomByValue.Name;
+                result.BottomCollectionRatePercent = bottomByValue.CollectionRate;
+                result.BottomCollectionValue = bottomByValue.Paid;
             }
 
+            // ==================== "الشكل الأول": حالة العقد (قائم/جديد) عدد + قيمة، ونسبة التحصيل لكل إدارة عامة ====================
+            result.DeptGeneralContractStatusCounts = byDeptGeneral
+                .Select(g => g
+                    .Where(x => x.ContractStatus != null)
+                    .GroupBy(x => x.ContractStatus!)
+                    .ToDictionary(sg => sg.Key, sg => sg.Count()))
+                .ToList();
+            result.DeptGeneralContractStatusValues = byDeptGeneral
+                .Select(g => g
+                    .Where(x => x.ContractStatus != null)
+                    .GroupBy(x => x.ContractStatus!)
+                    .ToDictionary(sg => sg.Key, sg => sg.Sum(x => x.Value)))
+                .ToList();
+            result.DeptGeneralCollectionRatePercent = deptStats.Select(x => x.CollectionRate).ToList();
+
             return result;
+        }
+
+        /// <summary>صفوف تصدير صفحة "الإدارات العامة" (Excel/PDF) - نفس تصفية GetDataAsync بالضبط</summary>
+        public async Task<List<AmanahInvestmentExportRow>> GetExportRowsAsync(string? quarter = null, string? contractNumber = null, List<int>? sectionIds = null, string? deptGeneral = null, string? deptSub = null, string? investmentType = null)
+        {
+            var query = await BuildFilteredQueryAsync(quarter, contractNumber, sectionIds, deptGeneral, deptSub, investmentType);
+            return await query
+                .Select(r => new AmanahInvestmentExportRow
+                {
+                    ContractNumber = r.ContractNumber,
+                    InvestorName = r.InvestorName,
+                    CreatedDate = r.CreatedDate,
+                    RecordDate = r.RecordDate,
+                    PaymentNumber = r.PaymentNumber,
+                    TotalValue = r.TotalValue,
+                    SubPortfolio = r.DeptSub
+                })
+                .ToListAsync();
         }
     }
 }

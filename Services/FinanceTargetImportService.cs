@@ -8,11 +8,11 @@ namespace ExcelDashboard.Services
     public interface IFinanceTargetImportService
     {
         /// <summary>
-        /// يقرأ ملف "مستهدف المالية": ورقة واحدة بكتلتين فقط - "الأمانة" ثم "البلديات التابعة"
-        /// (مجموع كل البلديات كنطاق واحد، بلا تفصيل لكل بلدية على حدة). كل كتلة: عمود "البند
-        /// الرئيسي" (قد يتكرر آخر قيمة غير فارغة لعدة أسطر فرعية)، عمود "البند الفرعي" (اختياري)،
-        /// وعمود "الإجمالي" = المستهدف السنوي (مستهدف سنوي فقط، بلا تفصيل شهري). يستبدل كل
-        /// البيانات القديمة بالكامل عند إعادة الرفع.
+        /// يقرأ ملف "المستهدف السنوي": ورقة واحدة بكتلتين ("نوع الإيراد  الأمانة" ثم "نوع
+        /// الإيراد  البلديات")، كل كتلة بعمود "البند الرئيسي" (يتكرر آخر قيمة غير فارغة لعدة
+        /// أسطر فرعية)، عمود "البند الفرعي" (اختياري)، وعمودَي قيمة جنب بعض: مستهدف وزارة
+        /// البلديات والإسكان السنوي ثم مستهدف وزارة المالية السنوي. يستخرج كلا المصدرين معًا
+        /// من نفس الملف، ويستبدل كل البيانات القديمة لكلا المصدرين بالكامل عند إعادة الرفع.
         /// </summary>
         Task<(bool Success, string Message, int RowsImported)> ImportAsync(Stream fileStream);
     }
@@ -42,21 +42,25 @@ namespace ExcelDashboard.Services
             {
                 return (false,
                     "لم يتم العثور على أي بيانات صالحة بالملف. تأكد أن الورقة الأولى تحتوي على " +
-                    "كتلتَي \"الأمانة\" و\"البلديات التابعة\" بنفس تخطيط الأعمدة المعتاد.",
+                    "كتلتَي \"نوع الإيراد  الأمانة\" و\"نوع الإيراد  البلديات\" بنفس تخطيط الأعمدة المعتاد.",
                     0);
             }
 
+            // الملف الواحد يغذّي كلا المصدرين معًا، فإعادة الرفع تستبدل كليهما دفعة واحدة
             var existing = await _db.FinanceItemTargets.ToListAsync();
             if (existing.Count > 0) _db.FinanceItemTargets.RemoveRange(existing);
 
             await _db.FinanceItemTargets.AddRangeAsync(rows);
             await _db.SaveChangesAsync();
 
-            var amanahTotal = rows.Where(r => r.Scope == "Amanah").Sum(r => r.AnnualTarget);
-            var baladiyahTotal = rows.Where(r => r.Scope == "Baladiyah").Sum(r => r.AnnualTarget);
+            var financeAmanah = rows.Where(r => r.TargetSource == "Finance" && r.Scope == "Amanah").Sum(r => r.AnnualTarget);
+            var financeBaladiyah = rows.Where(r => r.TargetSource == "Finance" && r.Scope == "Baladiyah").Sum(r => r.AnnualTarget);
+            var housingAmanah = rows.Where(r => r.TargetSource == "BaladiyahHousing" && r.Scope == "Amanah").Sum(r => r.AnnualTarget);
+            var housingBaladiyah = rows.Where(r => r.TargetSource == "BaladiyahHousing" && r.Scope == "Baladiyah").Sum(r => r.AnnualTarget);
             return (true,
-                $"تم استيراد مستهدف وزارة المالية بنجاح: {rows.Count} صف (الأمانة: " +
-                $"{amanahTotal:N0} ﷼، البلديات: {baladiyahTotal:N0} ﷼).",
+                $"تم استيراد المستهدف السنوي بنجاح: {rows.Count} صف. " +
+                $"وزارة المالية (الأمانة: {financeAmanah:N0} ﷼، البلديات: {financeBaladiyah:N0} ﷼) - " +
+                $"وزارة البلديات والإسكان (الأمانة: {housingAmanah:N0} ﷼، البلديات: {housingBaladiyah:N0} ﷼).",
                 rows.Count);
         }
 
@@ -64,6 +68,11 @@ namespace ExcelDashboard.Services
 
         private enum BlockScope { None, Amanah, Baladiyah }
 
+        /// <summary>
+        /// عمود C = مستهدف وزارة البلديات والإسكان (TargetSource="BaladiyahHousing")، عمود D =
+        /// مستهدف وزارة المالية (TargetSource="Finance") - كلاهما بنفس البند الرئيسي/الفرعي
+        /// بالضبط لأنهما من نفس صفوف نفس الملف، فيبقى ربط "تصنيف البند" متطابقًا للمصدرين.
+        /// </summary>
         private static List<FinanceItemTarget> ParseWorkbook(Stream fileStream)
         {
             using var workbook = new XLWorkbook(fileStream);
@@ -82,20 +91,20 @@ namespace ExcelDashboard.Services
                 var row = worksheet.Row(r);
                 var a = row.Cell(1).GetString().Trim();
                 var b = row.Cell(2).GetString().Trim();
-                var cCell = row.Cell(3);
+                var housingCell = row.Cell(3);
+                var financeCell = row.Cell(4);
                 bool bEmpty = string.IsNullOrEmpty(b);
-                bool cEmpty = cCell.IsEmpty();
 
-                // صف عنوان كتلة نطاق جديد: عمود "أ" فقط، بلا بند فرعي ولا قيمة
-                if (bEmpty && cEmpty)
+                // صف عنوان كتلة نطاق جديد ("نوع الإيراد  الأمانة" / "نوع الإيراد  البلديات")
+                if (a.StartsWith("نوع الإيراد"))
                 {
-                    if (a == "الأمانة") { scope = BlockScope.Amanah; currentMainItem = null; continue; }
-                    if (a == "البلديات التابعة") { scope = BlockScope.Baladiyah; currentMainItem = null; continue; }
-                    if (string.IsNullOrEmpty(a)) continue; // صف فارغ فاصل بين الكتلتين
+                    if (a.Contains("الأمانة")) { scope = BlockScope.Amanah; currentMainItem = null; }
+                    else if (a.Contains("البلديات")) { scope = BlockScope.Baladiyah; currentMainItem = null; }
+                    continue;
                 }
 
-                // صف عناوين الأعمدة ("نوع الإيراد ...")
-                if (a.StartsWith("نوع الإيراد")) continue;
+                // صف فارغ فاصل بين الكتل/البنود الفرعية
+                if (string.IsNullOrEmpty(a) && bEmpty && housingCell.IsEmpty() && financeCell.IsEmpty()) continue;
 
                 // صف إجمالي الكتلة أو الإجمالي الكلي (أمانة + بلديات) - قيم مشتقة، تُتجاهل
                 if (TotalLabels.Contains(a) || a.Contains("أمانة و بلديات")) continue;
@@ -105,15 +114,23 @@ namespace ExcelDashboard.Services
                 if (!string.IsNullOrEmpty(a)) currentMainItem = a;
                 if (string.IsNullOrEmpty(currentMainItem)) continue;
 
-                var target = IsNumericCell(cCell) ? cCell.GetValue<decimal>() : 0m;
+                var scopeValue = scope == BlockScope.Amanah ? "Amanah" : "Baladiyah";
+                var subItem = bEmpty ? null : b;
 
+                var housingTarget = IsNumericCell(housingCell) ? housingCell.GetValue<decimal>() : 0m;
                 result.Add(new FinanceItemTarget
                 {
-                    Scope = scope == BlockScope.Amanah ? "Amanah" : "Baladiyah",
-                    MainItem = currentMainItem,
-                    SubItem = bEmpty ? null : b,
-                    AnnualTarget = target,
-                    UploadedAt = now
+                    Scope = scopeValue, TargetSource = "BaladiyahHousing",
+                    MainItem = currentMainItem, SubItem = subItem,
+                    AnnualTarget = housingTarget, UploadedAt = now
+                });
+
+                var financeTarget = IsNumericCell(financeCell) ? financeCell.GetValue<decimal>() : 0m;
+                result.Add(new FinanceItemTarget
+                {
+                    Scope = scopeValue, TargetSource = "Finance",
+                    MainItem = currentMainItem, SubItem = subItem,
+                    AnnualTarget = financeTarget, UploadedAt = now
                 });
             }
 

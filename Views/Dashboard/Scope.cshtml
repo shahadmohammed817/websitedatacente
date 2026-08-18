@@ -3,7 +3,7 @@
 @{
     Layout = "_Layout";
     bool isAmanah = Model.Scope == ExcelDashboard.Models.ScopeType.Amanah;
-    string scopeTitle = isAmanah ? "بنود الأمانة" : "بنود البلدية";
+    string scopeTitle = isAmanah ? "الإدارات العامة" : "بنود البلدية";
     string scopeNameEn = isAmanah ? "Amanah" : "Baladiyah";
     string scopeIcon = isAmanah ? "building" : "city";
     ViewData["Title"] = scopeTitle;
@@ -41,7 +41,7 @@
     </aside>
 
     <section class="dashboard-content">
-        <div class="nav-bar-row">
+        <div class="nav-bar-row@(isAmanah ? " print-hide" : "")">
             <a href="@Url.Action("Index", "Home")" class="back-btn">@Icons.Svg("back", "btn-svg") <span>رجوع</span></a>
             <div class="breadcrumb-bar">
                 <a href="@Url.Action("Index", "Home")">الرئيسية</a>
@@ -50,7 +50,7 @@
             </div>
         </div>
 
-        <div class="dash-header-row">
+        <div class="dash-header-row@(isAmanah ? " print-hide" : "")">
             <div class="dash-header-info">
                 <div class="dash-icon-badge" id="dashIconBadge">@Icons.Svg(scopeIcon, "")</div>
                 <div>
@@ -60,12 +60,55 @@
             </div>
         </div>
 
-        <div id="dashboardGrids">
-            <div class="kpi-grid-4" id="kpiGrid"></div>
+        @if (isAmanah)
+        {
+            <!-- رأس خاص بالطباعة فقط (مخفي على الشاشة) -->
+            <div class="contract-print-header">
+                <div class="contract-print-logo-row">
+                    <img src="~/images/logo.png" alt="شعار الأمانة" class="contract-print-logo-img" />
+                </div>
+                <div class="contract-print-dept-lines">
+                    <div class="cp-dept-line-1">وكالة الاستثمار والاستدامة المالية</div>
+                    <div class="cp-dept-line-2">إدارة الدعم و الأداء - وحدة البيانات الاستثمارية</div>
+                </div>
+                <div class="contract-print-title">تقرير الإدارات العامة</div>
+                <div class="contract-print-date">تاريخ الطباعة: <span id="aiPrintDate"></span></div>
+            </div>
+
+            <div class="contract-actions" style="margin-bottom:14px;">
+                <button type="button" class="contract-action-btn" id="aiExportExcelBtn">
+                    @Icons.Svg("excel", "") <span>تصدير Excel</span>
+                </button>
+                <button type="button" class="contract-action-btn" id="aiExportPdfBtn">
+                    @Icons.Svg("pdf", "") <span>طباعة PDF</span>
+                </button>
+            </div>
+        }
+
+        <div id="dashboardGrids" class="@(isAmanah ? "print-hide" : "")">
+            <div class="kpi-grid-4@(isAmanah ? "" : " kpi-grid-wide")" id="kpiGrid"></div>
             <div class="charts-grid-3" id="chartsRow1" style="margin-bottom:18px;"></div>
             <div class="charts-grid-3" id="chartsRow2" style="margin-bottom:18px;"></div>
+            <div class="charts-grid-3" id="chartsRowDonuts" style="margin-bottom:18px;"></div>
+            <div class="charts-grid-3 tc-row-single" id="chartsRowInsights" style="margin-bottom:18px;"></div>
             <div class="charts-grid-3 tc-row-single" id="chartsRow3"></div>
         </div>
+
+        @if (isAmanah)
+        {
+            <!-- جدول التصدير: مخفي على الشاشة، يظهر عند الطباعة فقط -->
+            <div class="contract-table-wrap tarh-export-table-wrap" id="aiExportTableWrap">
+                <table class="contract-table with-number">
+                    <thead>
+                        <tr>
+                            <th>رقم العقد</th><th>اسم المستثمر</th><th>تاريخ الإنشاء</th><th>تاريخ الدفع</th>
+                            <th>رقم الدفعة</th><th>القيمة</th><th>المحفظة الفرعية</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aiExportTableBody"></tbody>
+                </table>
+            </div>
+        }
 
         <div class="no-data-box" id="noDataBox" style="display:none;">
             <span class="nd-icon">@Icons.Svg("inbox", "")</span>
@@ -91,12 +134,18 @@
     <script src="~/js/section-dashboard.js" asp-append-version="true"></script>
     @if (isAmanah)
     {
-        @* صفحة "بنود الأمانة" فقط: يعيد هذا الملف تعريف رسوم الصف الأول/الثاني بأربعة
-           رسوم مخصّصة لبند الاستثمار (كل رسم يعرض معلومة مختلفة، دون تكرار):
-           1) الإيرادات حسب الإدارات العامة — Horizontal Bar (ثابت)
-           2) أعلى الإدارات الفرعية إيرادًا — Horizontal Bar
-           3) المحصّل مقابل غير المحصّل حسب الإدارات العامة — Grouped Bar (ثابت)
-           4) اتجاه الإيرادات — Line Chart
+        <script>
+            window.AI_EXPORT_DATA_URL = "@Url.Action("AmanahInvestmentExportData", "Dashboard")";
+            window.AI_EXPORT_EXCEL_URL = "@Url.Action("AmanahInvestmentExportExcel", "Dashboard")";
+        </script>
+        @* صفحة "الإدارات العامة" فقط: يعيد هذا الملف تعريف رسوم الصف الأول/الثاني برسوم
+           مخصّصة لبند الاستثمار (كل رسم يعرض معلومة مختلفة، دون تكرار):
+           1) دونات نوع الاستثمار + فلتره
+           2) رسم حالة العقد
+           3) أعلى الإدارات الفرعية إيرادًا — Horizontal Bar
+           4) بطاقة "أعلى إدارة في نسبة التحصيل"
+           5) اتجاه التحصيل الشهري — Line Chart
+           6) تصدير Excel/PDF
            دون أي تأثير على صفحة "بنود البلدية" التي تستخدم نفس هذا العرض (Scope.cshtml) *@
         <script src="~/js/investment-scope-charts.js" asp-append-version="true"></script>
     }

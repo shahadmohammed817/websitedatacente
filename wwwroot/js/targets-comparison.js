@@ -14,7 +14,7 @@ const TC_C = {
     lime:   "#8DC63F",
     limeDk: "#5F9E1F",
     red:    "#D6534A",
-    target: "#E0A930",
+    target: "#0E6E61",
     text:   "#173B36",
     muted:  "#6E8A86",
     grid:   "#E1ECEA",
@@ -82,9 +82,24 @@ function tcSarVal(n) {
 }
 
 /* ==========================================================================
-   بطاقات KPI الأربع: إجمالي الإيرادات / إجمالي المستهدف / نسبة تحقيق المستهدف /
-   الفرق بين الإيرادات والمستهدف
+   بطاقات KPI عادية (إجمالي الإيرادات / إجمالي المستهدف / نسبة تحقيق المستهدف) -
+   بطاقة النسبة فقط تعرض حلقة تقدّم صغيرة (Radial Progress) بدل رقم نصي مجرّد
    ========================================================================== */
+function tcRingSvg(percent, color, gradId) {
+    const r = 85, c = 2 * Math.PI * r;
+    const pct = tcClamp(percent, 0, 100);
+    const offset = c - (pct / 100) * c;
+    return '<div class="tc-gauge-ring-wrap tc-kpi-ring-sm">' +
+        '<svg viewBox="0 0 220 220">' +
+            '<circle class="tc-gauge-track" cx="110" cy="110" r="' + r + '"></circle>' +
+            '<circle class="tc-gauge-progress" cx="110" cy="110" r="' + r + '" stroke="' + color + '" ' +
+                'stroke-dasharray="' + c.toFixed(2) + '" stroke-dashoffset="' + c.toFixed(2) + '" ' +
+                'data-target-offset="' + offset.toFixed(2) + '"></circle>' +
+        '</svg>' +
+        '<div class="tc-gauge-center"><div class="tc-gauge-percent">' + percent.toFixed(1) + '%</div></div>' +
+    '</div>';
+}
+
 function tcRenderKpiCards(data, mode) {
     const grid = document.getElementById("tcKpiGrid");
     if (!grid) return;
@@ -94,25 +109,24 @@ function tcRenderKpiCards(data, mode) {
     var revenueTotal = isFinance ? data.financeCollectedTotal : data.baladiyahInvoicedTotal;
     var targetTotal = isFinance ? data.financeTargetTotal : data.baladiyahTargetTotal;
     var achievementPct = isFinance ? data.financeAchievementPercent : data.baladiyahAchievementPercent;
-    var diff = revenueTotal - targetTotal;
 
-    var cards = [
-        { cls: "c1", icon: "bi-cash-stack", label: revenueLabel, value: tcSarVal(revenueTotal) },
-        { cls: "c4", icon: "bi-bullseye", label: "إجمالي المستهدف", value: tcSarVal(targetTotal) },
-        { cls: "c2", icon: "bi-graph-up-arrow", label: "نسبة تحقيق المستهدف", value: achievementPct.toFixed(1) + "%" },
-        {
-            cls: diff >= 0 ? "c2" : "c3", icon: diff >= 0 ? "bi-arrow-up-circle" : "bi-arrow-down-circle",
-            label: "الفرق بين الإيرادات والمستهدف", value: tcSarVal(diff)
-        }
-    ];
-
-    grid.innerHTML = cards.map(function (c) {
-        return '<div class="kpi-card ' + c.cls + '">' +
-            '<div class="icon"><i class="bi ' + c.icon + '"></i></div>' +
-            '<div class="label">' + c.label + '</div>' +
-            '<div class="value">' + c.value + '</div>' +
+    grid.innerHTML =
+        '<div class="kpi-card c1"><div class="icon"><i class="bi bi-cash-stack"></i></div>' +
+            '<div class="label">' + revenueLabel + '</div><div class="value">' + tcSarVal(revenueTotal) + '</div></div>' +
+        '<div class="kpi-card c4"><div class="icon"><i class="bi bi-bullseye"></i></div>' +
+            '<div class="label">إجمالي المستهدف</div><div class="value">' + tcSarVal(targetTotal) + '</div></div>' +
+        '<div class="kpi-card c2 tc-kpi-card-ring">' +
+            tcRingSvg(achievementPct || 0, TC_C.dark) +
+            '<div class="label">نسبة تحقيق المستهدف</div>' +
         '</div>';
-    }).join("");
+
+    requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+            grid.querySelectorAll(".tc-gauge-progress").forEach(function (el) {
+                el.style.strokeDashoffset = el.getAttribute("data-target-offset");
+            });
+        });
+    });
 }
 
 /* ==========================================================================
@@ -250,8 +264,11 @@ function tcBuildItemsHorizontalBarOption(items, actualName, targetName, actualCo
             }
         }),
         legend: { top: 0, right: 8, textStyle: Object.assign({}, TC_AXIS_LABEL_STYLE), itemWidth: 12, itemHeight: 10 },
-        grid: { left: 150, right: 70, top: 40, bottom: 20 },
-        xAxis: tcAxisStyle({ type: "value", axisLabel: { formatter: tcFormatCompact } }),
+        grid: { left: 150, right: 80, top: 40, bottom: 10 },
+        // محور Q مخفي (بلا تسميات/خطوط تقسيم) - القيم مكتوبة أصلاً على كل عمود (label بالأسفل)،
+        // إظهاره كان يسبب تكدّس أرقامه فوق بعض عند تباعد كبير بين البنود (بند بمليارات جنب بند
+        // بآلاف) فيظهر الرسم مزدحمًا وضيّقًا
+        xAxis: tcAxisStyle({ type: "value", show: false }),
         yAxis: tcAxisStyle({ type: "category", data: categories, axisLabel: { fontSize: 11, width: 140, overflow: "break" } }),
         series: [
             {
@@ -353,7 +370,7 @@ function tcFixSingleChartRows(rowIds) {
 /* ==========================================================================
    رسم رسم بياني داخل بطاقة ضمن صف مُحدد
    ========================================================================== */
-function tcRenderChart(rowId, containerId, title, badge, option, extraClass) {
+function tcRenderChart(rowId, containerId, title, badge, option, extraClass, heightPx) {
     const row = document.getElementById(rowId);
     if (!row) return;
 
@@ -368,7 +385,11 @@ function tcRenderChart(rowId, containerId, title, badge, option, extraClass) {
         '<div class="echart-box" id="' + id + '"></div>';
     row.appendChild(div);
 
-    const chart = echarts.init(document.getElementById(id));
+    const box = document.getElementById(id);
+    // ارتفاع مضبوط مباشرة (Inline) بدل الاعتماد فقط على أصناف CSS المختلفة بين الرسوم (كانت
+    // تُنتج ارتفاعات متفاوتة بنفس الصف فيبدو غريبًا/غير متّسق) - يضمن تطابق كل رسوم نفس الصف
+    if (heightPx) box.style.height = heightPx + "px";
+    const chart = echarts.init(box);
     chart.setOption(option);
     tcCharts.push(chart);
 }
@@ -430,7 +451,7 @@ async function tcLoad(entity) {
         const valueField = isFinance ? "financeCollectedByQuarter" : "baladiyahInvoicedByQuarter";
         const targetField = isFinance ? "targetFinanceByQuarter" : "targetBaladiyahByQuarter";
 
-        // 1) بطاقات KPI الأربع
+        // 1) بطاقات KPI الثلاث (إجمالي الإيرادات / إجمالي المستهدف / نسبة تحقيق المستهدف كحلقة)
         tcRenderKpiCards(data, mode);
 
         // ملاحظة: window.TC_MODE بلا افتراض هنا عمدًا (بخلاف "mode" أعلاه) - صفحة "مقارنة
@@ -464,21 +485,16 @@ async function tcLoad(entity) {
         const itemsChartOption = tcBuildItemsHorizontalBarOption(itemsByRevenueDesc, actualName, targetName, actualColor);
 
         if (isBaladiyahPage) {
-            // صف 1: الأداء الربعي (تراكمي) + البنود (مستهدف سنوي مقابل مفوتر لكل بند رئيسي)
-            tcRenderChart("tcChartsRow", "tcQuarterlyChart", quarterlyTitle, "ربعي", quarterlyChartOption);
-            tcRenderChart(
-                "tcChartsRow", "tcItemsHorizontalChart",
-                "أداء البنود الرئيسية - " + actualName + " مقابل المستهدف",
-                "حسب البند",
-                itemsChartOption, "tc-quarterly-card"
-            );
+            // صف 1: الأداء الربعي (تراكمي) فقط - رسمة "أداء البنود الرئيسية" حُذفت بالكامل بهذه
+            // الصفحة (تكرار مع بطاقة نسبة التحقيق + الرسمين الآخرين)
+            tcRenderChart("tcChartsRow", "tcQuarterlyChart", quarterlyTitle, "ربعي", quarterlyChartOption, null, 320);
 
-            // صف 2: الأداء الشهري وحده بعرض كامل (مكان "أداء البنود الرئيسية" سابقًا)
+            // صف 2: الأداء الشهري وحده بعرض كامل
             tcRenderChart(
                 "tcItemsAnnualRow", "tcMonthlyChart",
                 "الأداء الشهري - " + actualName + " مقابل المستهدف الشهري",
                 "شهري",
-                monthlyChartOption
+                monthlyChartOption, null, 340
             );
 
             // صف 3 (توزيع الإيرادات + أعلى البنود) محذوف بالكامل بهذه الصفحة
@@ -500,8 +516,15 @@ async function tcLoad(entity) {
 
         tcPopulateEntityFilter(data.entities, entity);
 
-        // توسيع أي صف يحتوي على رسم واحد فقط ليأخذ عرض الصفحة كاملاً
+        // توسيع أي صف يحتوي على رسم واحد فقط ليأخذ عرض الصفحة كاملاً - هذا يغيّر عرض حاويات
+        // الرسوم بعد ما رُسمت أصلاً بعرضها الضيّق القديم (عمودين)، فلازم إعادة قياس (resize)
+        // كل الرسوم بعده مباشرة وإلا بقيت مرسومة بحجمها الصغير القديم وتظهر منحشرة على جنب
         tcFixSingleChartRows(["tcChartsRow", "tcItemsAnnualRow", "tcChartsRow2"]);
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                tcCharts.forEach(function (c) { try { c.resize(); } catch (e) {} });
+            });
+        });
     } catch (err) {
         console.error("تعذر تحميل بيانات مقارنة المستهدفات:", err);
         if (contentEl) contentEl.style.display = "none";

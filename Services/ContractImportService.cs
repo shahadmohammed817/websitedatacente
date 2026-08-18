@@ -84,11 +84,28 @@ namespace ExcelDashboard.Services
             if (!workbook.Worksheets.TryGetWorksheet("الطرح", out var worksheet))
                 throw new InvalidOperationException("لم يتم العثور على ورقة باسم \"الطرح\" بالملف.");
 
-            const int headerRow = 5;
-            const int firstDataRow = 6;
-
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
             var lastCol = worksheet.LastColumnUsed()?.ColumnNumber() ?? 0;
+
+            // صف العناوين لا يقع دائمًا بنفس الرقم (لوحظ فعليًا: أحيانًا الصف 5 (بعد صفوف عنوان/فلتر
+            // تعريفية)، وأحيانًا الصف 1 مباشرة حسب تصدير الملف) - نفحص أول 10 صفوف ونختار أول صف
+            // يحتوي على عمودَي "رقم الفرصة" و"الحالة" معًا (أكيد وجودهما بكل نسخ الملف المعروفة)
+            int headerRow = 0;
+            for (int r = 1; r <= Math.Min(10, lastRow); r++)
+            {
+                bool hasOpp = false, hasStatus = false;
+                for (int c = 1; c <= lastCol; c++)
+                {
+                    var v = worksheet.Cell(r, c).GetString().Trim();
+                    if (v == "رقم الفرصة") hasOpp = true;
+                    else if (v == "الحالة") hasStatus = true;
+                }
+                if (hasOpp && hasStatus) { headerRow = r; break; }
+            }
+            if (headerRow == 0)
+                throw new InvalidOperationException("لم يتم العثور على صف عناوين يحتوي \"رقم الفرصة\" و\"الحالة\" ضمن أول 10 صفوف بورقة \"الطرح\".");
+
+            var firstDataRow = headerRow + 1;
 
             var colByHeader = new Dictionary<string, int>();
             for (int c = 1; c <= lastCol; c++)
