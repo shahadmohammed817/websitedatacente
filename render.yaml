@@ -3,6 +3,7 @@ services:
     name: madinah-dashboard-viewer
     runtime: docker
     plan: free
+    branch: copy-p
     envVars:
       - key: READONLY_MODE
         value: "true"
