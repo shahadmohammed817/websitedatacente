@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ExcelDashboard.Controllers
 {
     /// <summary>صفحة "لوحة المطالبات التنفيذية" - مصدرها ملف "تقرير التنفيذ القضائي" يُرفع من زر مخصص أعلى الصفحة.</summary>
-    public class ClaimsExecutionController : Controller
+    public class ClaimsExecutionController : AppControllerBase
     {
         private readonly IClaimsExecutionAnalyticsService _analytics;
         private readonly IClaimExecutionImportService _importService;
@@ -25,7 +25,9 @@ namespace ExcelDashboard.Controllers
         [HttpGet("ClaimsExecution/Data")]
         public async Task<IActionResult> Data(string? department, string? claimStatus, string? opportunityNumber, string? contractNumber, string? invoiceNumber)
         {
+            department = ScopedDepartment(department);
             var data = await _analytics.GetDataAsync(department, claimStatus, opportunityNumber, contractNumber, invoiceNumber);
+            if (IsDepartmentRestricted) data.DepartmentOptions = new List<string> { department! };
             return Json(data);
         }
 
@@ -52,6 +54,7 @@ namespace ExcelDashboard.Controllers
         [HttpGet("ClaimsExecution/ExportData")]
         public async Task<IActionResult> ExportData(string? department, string? claimStatus, string? opportunityNumber, string? contractNumber, string? invoiceNumber)
         {
+            department = ScopedDepartment(department);
             var rows = await _analytics.GetExportRowsAsync(department, claimStatus, opportunityNumber, contractNumber, invoiceNumber);
             return Json(rows.Select(r => new
             {
@@ -61,7 +64,7 @@ namespace ExcelDashboard.Controllers
                 claimStatusFull = r.ClaimStatusFull,
                 generalDepartment = r.GeneralDepartment,
                 portfolio = r.Portfolio,
-                paymentValueWithTax = r.PaymentValueWithTax,
+                paymentValueWithoutTax = r.PaymentValueWithoutTax,
                 paymentDueDate = r.PaymentDueDate
             }));
         }
@@ -70,6 +73,7 @@ namespace ExcelDashboard.Controllers
         [HttpGet("ClaimsExecution/ExportExcel")]
         public async Task<IActionResult> ExportExcel(string? department, string? claimStatus, string? opportunityNumber, string? contractNumber, string? invoiceNumber)
         {
+            department = ScopedDepartment(department);
             var rows = await _analytics.GetExportRowsAsync(department, claimStatus, opportunityNumber, contractNumber, invoiceNumber);
 
             using var workbook = new XLWorkbook();
@@ -95,9 +99,9 @@ namespace ExcelDashboard.Controllers
                 sheet.Cell(row, 4).Value = r.ClaimStatusFull ?? "";
                 sheet.Cell(row, 5).Value = r.GeneralDepartment ?? "";
                 sheet.Cell(row, 6).Value = r.Portfolio ?? "";
-                if (r.PaymentValueWithTax.HasValue)
+                if (r.PaymentValueWithoutTax.HasValue)
                 {
-                    sheet.Cell(row, 7).Value = r.PaymentValueWithTax.Value;
+                    sheet.Cell(row, 7).Value = r.PaymentValueWithoutTax.Value;
                     sheet.Cell(row, 7).Style.NumberFormat.Format = "#,##0.00";
                 }
                 if (r.PaymentDueDate.HasValue)

@@ -6,7 +6,7 @@
    ========================================================================== */
 const CGP_C = {
     dark: "#0E6E61", mid: "#3F8F87", light: "#5FA89D", lime: "#8DC63F", limeDk: "#5F9E1F",
-    red: "#D6534A", text: "#173B36", muted: "#6E8A86", grid: "#E1ECEA", axisText: "#181818"
+    red: "#D6534A", warn: "#E0A930", text: "#173B36", muted: "#6E8A86", grid: "#E1ECEA", axisText: "#181818"
 };
 const CGP_AXIS_LABEL_STYLE = { color: CGP_C.axisText, fontSize: 13, fontWeight: 600 };
 const CGP_PALETTE = [CGP_C.dark, CGP_C.mid, CGP_C.lime, CGP_C.light, CGP_C.limeDk];
@@ -221,60 +221,25 @@ function cgpRenderCharts(data) {
     cgpRenderDeptQuarterChart(data);
 }
 
-/* ==========================================================================
-   "العقود اللي شارفت على الانتهاء" - نفس تصميم "الفواتير المتجاوزة 60 يوم" بصفحة المديونيات
-   (وهو بدوره نسخة من "تحت إجراءات الترسية" بصفحة الطرح) - أحمر=نهاية فترة التجهيز بسنة 2026
-   بالضبط، أخضر=الباقي. بلا درج تفاصيل قابل للضغط (لم يُطلَب لهذه الصفحة)
-   ========================================================================== */
-function cgpBuildExpiringArcOption(greenPct, greenCount, redCount) {
-    const total = greenCount + redCount;
-    return {
-        tooltip: cgpTooltip({
-            formatter: function (p) {
-                if (p.data.name === "gap") return "";
-                const label = p.data.name === "green" ? "غير عاجلة" : "تنتهي فترة التجهيز 2026";
-                return '<div style="font-weight:700;">' + label + '</div><div>' + cgpFormatNum(p.data.value) + ' عقد</div>';
-            }
-        }),
-        series: [{
-            type: "pie",
-            startAngle: 210, clockwise: true,
-            radius: ["80%", "92%"],
-            center: ["50%", "62%"],
-            avoidLabelOverlap: false,
-            label: { show: false }, labelLine: { show: false },
-            emphasis: { scaleSize: 6 },
-            data: [
-                { value: greenCount, name: "green", itemStyle: { color: CGP_C.lime } },
-                { value: redCount, name: "red", itemStyle: { color: CGP_C.red } },
-                { value: total * 0.5, name: "gap", itemStyle: { color: "transparent" }, label: { show: false }, tooltip: { show: false }, silent: true }
-            ]
-        }],
-        graphic: [
-            {
-                type: "text", left: "center", top: "48%",
-                style: { text: greenPct.toFixed(1) + "%", fontSize: 22, fontWeight: 800, fill: CGP_C.text, fontFamily: "Cairo", textAlign: "center" }
-            },
-            {
-                type: "text", left: "center", top: "62%",
-                style: { text: "غير عاجلة", fontSize: 10, fontWeight: 700, fill: CGP_C.muted, textAlign: "center" }
-            }
-        ]
-    };
-}
-
 // قائمة العقود المفلترة حاليًا لقوس "العقود التي تنتهي فترة سماحها خلال 2026" - نفس أسلوب
 // قوس "العقود التي شارفت على الانتهاء" أدناه بالضبط (قائمة قابلة للضغط ← تفاصيل عقد واحد)
 let cgpPrepEndingListCache = [];
 
-async function cgpShowPrepEndingList(isRed) {
+// zone: "red" = تجاوزت 90 يوم، "yellow" = من 31 إلى 89 يوم، "green" = 30 يوم فأقل
+var CGP_PREP_ZONE_TITLES = {
+    red: "العقود المتجاوزة 90 يوم",
+    yellow: "العقود من 31 إلى 89 يوم",
+    green: "العقود ضمن 30 يوم"
+};
+
+async function cgpShowPrepEndingList(zone) {
     var placeholder = document.getElementById("cgpPrepEndingTrackPlaceholder");
     var listWrap = document.getElementById("cgpPrepEndingTrackList");
     var titleEl = document.getElementById("cgpPrepEndingTrackTitle");
     if (!listWrap) return;
 
     if (titleEl) {
-        titleEl.innerHTML = '<i class="bi bi-signpost-split"></i> ' + (isRed ? "العقود التي تنتهي فترة تجهيزها 2026" : "العقود غير العاجلة");
+        titleEl.innerHTML = '<i class="bi bi-signpost-split"></i> ' + (CGP_PREP_ZONE_TITLES[zone] || "تفاصيل العقود");
     }
     if (placeholder) placeholder.style.display = "none";
     listWrap.style.display = "";
@@ -282,7 +247,7 @@ async function cgpShowPrepEndingList(isRed) {
 
     try {
         var params = new URLSearchParams(cgpQueryString());
-        params.set("isRed", isRed ? "true" : "false");
+        params.set("zone", zone);
         var resp = await fetch(window.CGP_PREP_ENDING_URL + "?" + params.toString());
         cgpPrepEndingListCache = await resp.json();
         cgpRenderPrepEndingList();
@@ -305,7 +270,8 @@ function cgpRenderPrepEndingList() {
         cgpPrepEndingListCache.map(function (r, i) {
             return '<div class="tarh-opp-item" data-idx="' + i + '">' +
                 '<span class="tarh-opp-item-text"><span class="tarh-opp-item-number">' + cgpEscape(r.contractNumber || "—") + '</span>' +
-                    (r.opportunityName ? ' — ' + cgpEscape(r.opportunityName) : '') + '</span>' +
+                    (r.opportunityName ? ' — ' + cgpEscape(r.opportunityName) : '') +
+                    (r.investorName ? '<br><small>المستثمر: ' + cgpEscape(r.investorName) + '</small>' : '') + '</span>' +
             '</div>';
         }).join("") +
     '</div>';
@@ -325,11 +291,12 @@ function cgpShowPrepEndingDetail(idx) {
 
     var html = '<button type="button" class="tarh-timeline-back" id="cgpPrepEndingBackBtn"><i class="bi bi-arrow-right"></i><span>رجوع للقائمة</span></button>';
     html += '<div style="margin-top:16px;">' +
-        '<div style="font-weight:800;color:var(--brand-dark);">' + cgpEscape(r.opportunityName || r.contractNumber || "—") + '</div>' +
+        '<div style="font-weight:800;color:var(--brand-dark);">' + cgpEscape(r.investorName || r.opportunityName || r.contractNumber || "—") + '</div>' +
         '<div style="font-size:.82rem;color:var(--muted);margin-top:2px;">رقم العقد: <strong>' + cgpEscape(r.contractNumber || "—") + '</strong></div>' +
     '</div>';
     html += '<div style="margin-top:14px;display:flex;flex-direction:column;gap:12px;">' +
         '<div><div style="color:var(--muted);font-size:.78rem;font-weight:700;">اسم الفرصة</div><div style="font-weight:700;margin-top:2px;">' + cgpEscape(r.opportunityName || "—") + '</div></div>' +
+        '<div><div style="color:var(--muted);font-size:.78rem;font-weight:700;">اسم المستثمر</div><div style="font-weight:700;margin-top:2px;">' + cgpEscape(r.investorName || "—") + '</div></div>' +
         '<div><div style="color:var(--muted);font-size:.78rem;font-weight:700;">تاريخ نهاية فترة التجهيز</div><div style="font-weight:700;margin-top:2px;">' + cgpFormatDate(r.contractEndDate) + '</div></div>' +
         '<div><div style="color:var(--muted);font-size:.78rem;font-weight:700;">تاريخ التوقيع</div><div style="font-weight:700;margin-top:2px;">' + cgpFormatDate(r.signingDate) + '</div></div>' +
     '</div>';
@@ -346,26 +313,30 @@ function cgpRenderExpiringArc(data) {
     const row = document.getElementById("cgpChartsRow3");
     if (!row) return;
 
-    const totalWithDate = (data.prepEndingGreenCount || 0) + (data.prepEndingRedCount || 0);
+    const redCount = data.prepEndingRedCount || 0;
+    const yellowCount = data.prepEndingYellowCount || 0;
+    const greenCount = data.prepEndingGreenCount || 0;
+    const total = redCount + yellowCount + greenCount;
     const div = document.createElement("div");
     div.className = "chart-card tarh-duration-card";
 
-    if (totalWithDate === 0) {
+    if (total === 0) {
         div.innerHTML =
             '<div class="tarh-duration-header"><div class="tarh-duration-title"><i class="bi bi-hourglass-split"></i> العقود التي تنتهي فترة سماحها خلال 2026</div></div>' +
-            '<div class="no-data-box" style="margin:0;"><span class="nd-icon"><i class="bi bi-inbox"></i></span>لا توجد عقود بعمود "نهاية فترة التجهيز" ضمن الفلاتر الحالية.</div>';
+            '<div class="no-data-box" style="margin:0;"><span class="nd-icon"><i class="bi bi-inbox"></i></span>لا توجد عقود "نهاية فترة التجهيز" لها بسنة 2026 ضمن الفلاتر الحالية.</div>';
         row.appendChild(div);
         return;
     }
 
-    const greenPct = (data.prepEndingGreenCount / totalWithDate) * 100;
+    const redPct = data.prepEndingRedPercent != null ? data.prepEndingRedPercent : (redCount / total) * 100;
     const gaugeId = "cgpExpiringGauge_" + Date.now();
     div.innerHTML =
         '<div class="tarh-duration-header"><div class="tarh-duration-title"><i class="bi bi-hourglass-split"></i> العقود التي تنتهي فترة سماحها خلال 2026</div></div>' +
         '<div class="echart-box" id="' + gaugeId + '"></div>' +
         '<div class="tarh-duration-legend">' +
-            '<div class="tarh-duration-legend-item"><span class="tarh-duration-dot within"></span> غير عاجلة — ' + cgpFormatNum(data.prepEndingGreenCount) + '</div>' +
-            '<div class="tarh-duration-legend-item"><span class="tarh-duration-dot over"></span> تنتهي فترة التجهيز 2026 — ' + cgpFormatNum(data.prepEndingRedCount) + '</div>' +
+            '<div class="tarh-duration-legend-item"><span class="tarh-duration-dot" style="background:' + CGP_C.red + ';"></span> تجاوزت 90 يوم — ' + cgpFormatNum(redCount) + '</div>' +
+            '<div class="tarh-duration-legend-item"><span class="tarh-duration-dot" style="background:' + CGP_C.warn + ';"></span> من 31 إلى 89 يوم — ' + cgpFormatNum(yellowCount) + '</div>' +
+            '<div class="tarh-duration-legend-item"><span class="tarh-duration-dot" style="background:' + CGP_C.limeDk + ';"></span> ضمن 30 يوم — ' + cgpFormatNum(greenCount) + '</div>' +
         '</div>';
     row.appendChild(div);
 
@@ -374,7 +345,7 @@ function cgpRenderExpiringArc(data) {
     trackDiv.innerHTML =
         '<div class="tarh-duration-header"><div class="tarh-duration-title" id="cgpPrepEndingTrackTitle"><i class="bi bi-signpost-split"></i> تفاصيل العقود</div></div>' +
         '<div class="tarh-track-body">' +
-            '<div class="no-data-box" style="margin:0;" id="cgpPrepEndingTrackPlaceholder"><span class="nd-icon"><i class="bi bi-hand-index-thumb"></i></span>اضغط على القوس (أخضر/أحمر) لعرض العقود هنا</div>' +
+            '<div class="no-data-box" style="margin:0;" id="cgpPrepEndingTrackPlaceholder"><span class="nd-icon"><i class="bi bi-hand-index-thumb"></i></span>اضغط على القوس (أحمر/أصفر/أخضر) لعرض العقود هنا</div>' +
             '<div id="cgpPrepEndingTrackList" style="display:none;"></div>' +
         '</div>';
     row.appendChild(trackDiv);
@@ -382,14 +353,55 @@ function cgpRenderExpiringArc(data) {
     const gaugeBox = document.getElementById(gaugeId);
     gaugeBox.style.height = "230px";
     const gauge = echarts.init(gaugeBox);
-    gauge.setOption(cgpBuildExpiringArcOption(greenPct, data.prepEndingGreenCount, data.prepEndingRedCount));
+    gauge.setOption(cgpBuildExpiring3ArcOption(redPct, redCount, yellowCount, greenCount));
     cgpCharts.push(gauge);
     requestAnimationFrame(function () { try { gauge.resize(); } catch (e) {} });
 
     gauge.on("click", function (params) {
         if (!params.data || params.data.name === "gap") return;
-        cgpShowPrepEndingList(params.data.name === "red");
+        cgpShowPrepEndingList(params.data.name);
     });
+}
+
+// قوس "العقود التي تنتهي فترة سماحها خلال 2026" - ثلاثة أجزاء حسب عدد الأيام المنقضية منذ
+// "نهاية فترة التجهيز" (لعقود 2026 فقط): أحمر=تجاوزت 90 يوم، أصفر=من 31 إلى 89 يوم، أخضر=ضمن
+// 30 يوم. النسبة بالمنتصف = الأحمر من إجمالي الثلاثة
+function cgpBuildExpiring3ArcOption(redPct, redCount, yellowCount, greenCount) {
+    var total = redCount + yellowCount + greenCount;
+    return {
+        tooltip: cgpTooltip({
+            formatter: function (p) {
+                if (p.data.name === "gap") return "";
+                var label = p.data.name === "red" ? "تجاوزت 90 يوم" : p.data.name === "yellow" ? "من 31 إلى 89 يوم" : "ضمن 30 يوم";
+                return '<div style="font-weight:700;">' + label + '</div><div>' + cgpFormatNum(p.data.value) + ' عقد - اضغط لعرضها</div>';
+            }
+        }),
+        series: [{
+            type: "pie",
+            startAngle: 210, clockwise: true,
+            radius: ["80%", "92%"],
+            center: ["50%", "62%"],
+            avoidLabelOverlap: false,
+            label: { show: false }, labelLine: { show: false },
+            emphasis: { scaleSize: 6 },
+            data: [
+                { value: redCount, name: "red", itemStyle: { color: CGP_C.red } },
+                { value: yellowCount, name: "yellow", itemStyle: { color: CGP_C.warn } },
+                { value: greenCount, name: "green", itemStyle: { color: CGP_C.limeDk } },
+                { value: total * 0.5, name: "gap", itemStyle: { color: "transparent" }, label: { show: false }, tooltip: { show: false }, silent: true }
+            ]
+        }],
+        graphic: [
+            {
+                type: "text", left: "center", top: "48%",
+                style: { text: redPct.toFixed(1) + "%", fontSize: 22, fontWeight: 800, fill: CGP_C.text, fontFamily: "Cairo", textAlign: "center" }
+            },
+            {
+                type: "text", left: "center", top: "62%",
+                style: { text: "تجاوزت 90 يوم", fontSize: 10, fontWeight: 700, fill: CGP_C.muted, textAlign: "center" }
+            }
+        ]
+    };
 }
 
 /* ==========================================================================
@@ -484,7 +496,8 @@ function cgpRenderContractEndingList() {
         cgpEndingListCache.map(function (r, i) {
             return '<div class="tarh-opp-item" data-idx="' + i + '">' +
                 '<span class="tarh-opp-item-text"><span class="tarh-opp-item-number">' + cgpEscape(r.contractNumber || "—") + '</span>' +
-                    (r.opportunityName ? ' — ' + cgpEscape(r.opportunityName) : '') + '</span>' +
+                    (r.opportunityName ? ' — ' + cgpEscape(r.opportunityName) : '') +
+                    (r.investorName ? '<br><small>المستثمر: ' + cgpEscape(r.investorName) + '</small>' : '') + '</span>' +
             '</div>';
         }).join("") +
     '</div>';
@@ -504,11 +517,12 @@ function cgpShowContractEndingDetail(idx) {
 
     var html = '<button type="button" class="tarh-timeline-back" id="cgpEndingBackBtn"><i class="bi bi-arrow-right"></i><span>رجوع للقائمة</span></button>';
     html += '<div style="margin-top:16px;">' +
-        '<div style="font-weight:800;color:var(--brand-dark);">' + cgpEscape(r.opportunityName || r.contractNumber || "—") + '</div>' +
+        '<div style="font-weight:800;color:var(--brand-dark);">' + cgpEscape(r.investorName || r.opportunityName || r.contractNumber || "—") + '</div>' +
         '<div style="font-size:.82rem;color:var(--muted);margin-top:2px;">رقم العقد: <strong>' + cgpEscape(r.contractNumber || "—") + '</strong></div>' +
     '</div>';
     html += '<div style="margin-top:14px;display:flex;flex-direction:column;gap:12px;">' +
         '<div><div style="color:var(--muted);font-size:.78rem;font-weight:700;">اسم الفرصة</div><div style="font-weight:700;margin-top:2px;">' + cgpEscape(r.opportunityName || "—") + '</div></div>' +
+        '<div><div style="color:var(--muted);font-size:.78rem;font-weight:700;">اسم المستثمر</div><div style="font-weight:700;margin-top:2px;">' + cgpEscape(r.investorName || "—") + '</div></div>' +
         '<div><div style="color:var(--muted);font-size:.78rem;font-weight:700;">تاريخ نهاية العقد</div><div style="font-weight:700;margin-top:2px;">' + cgpFormatDate(r.contractEndDate) + '</div></div>' +
         '<div><div style="color:var(--muted);font-size:.78rem;font-weight:700;">تاريخ العقد (التوقيع)</div><div style="font-weight:700;margin-top:2px;">' + cgpFormatDate(r.signingDate) + '</div></div>' +
     '</div>';

@@ -490,6 +490,8 @@ async function loadDashboard(url, meta, isBaseNavigation) {
         renderQuarterChart(data);
         // الصف الثاني: الإيرادات الشهرية لكل جهة (لاين شارت) بعرض كامل وطول أكبر
         renderEntityMonthChart(data);
+        // الصفحة الرئيسية فقط: دونات "ملزم/غير ملزم" + دونات "الأمانة/البلديات" (قيمة وعدد)
+        renderHomeDonuts(data);
     } catch (err) {
         console.error("تعذر تحميل بيانات اللوحة:", err);
         toggleNoData(true);
@@ -1110,6 +1112,75 @@ function renderBaladiyahActivityCards(row, data) {
         baladiyahActivitySquareHtml("bi-trophy", "أكثر بلدية تفاعلاً (محصّل)", data.topActivityEntity, data.topActivityCollected) +
         baladiyahActivitySquareHtml("bi-graph-down-arrow", "أقل بلدية تفاعلاً (محصّل)", data.bottomActivityEntity, data.bottomActivityCollected);
     row.appendChild(div);
+}
+
+/* ==========================================================================
+   الصفحة الرئيسية فقط: دونات "ملزم/غير ملزم" (عمود "نوع البند") + دونات "الأمانة/البلديات" -
+   كل شريحة تعرض القيمة الإجمالية (تسمية الشريحة) والعدد (بجانب اسم الشريحة بالتلميح والوسيلة)
+   ========================================================================== */
+const HOME_DONUT_PALETTE = [C.dark, C.lime, C.mid, C.light, "#0A5A4F"];
+
+function buildHomeDonutOption(rows) {
+    const total = rows.reduce(function (s, r) { return s + (r.value || 0); }, 0);
+    const items = rows.map(function (r, i) {
+        return { name: r.name, value: r.value || 0, count: r.count || 0, itemStyle: { color: HOME_DONUT_PALETTE[i % HOME_DONUT_PALETTE.length] } };
+    });
+
+    return {
+        tooltip: tooltipStyle({
+            trigger: "item",
+            formatter: function (p) {
+                const pct = total > 0 ? Math.round((p.data.value / total) * 1000) / 10 : 0;
+                return '<div style="font-weight:700;margin-bottom:4px;">' + escapeHtml(p.name) + '</div>' +
+                    '<div>القيمة: <strong>' + formatNum(p.data.value) + '</strong> (' + pct + '%)</div>' +
+                    '<div>العدد: <strong>' + formatNum(p.data.count) + '</strong></div>';
+            }
+        }),
+        legend: {
+            bottom: 0, textStyle: Object.assign({}, AXIS_LABEL_STYLE), itemWidth: 10, itemHeight: 10,
+            formatter: function (name) {
+                const row = items.filter(function (it) { return it.name === name; })[0];
+                return row ? name + "  (" + formatNum(row.count) + ")" : name;
+            }
+        },
+        series: [{
+            type: "pie", radius: ["45%", "70%"], center: ["50%", "42%"],
+            avoidLabelOverlap: true,
+            itemStyle: { borderColor: "#fff", borderWidth: 2 },
+            label: {
+                show: true, fontSize: 12, fontWeight: 700, color: C.axisText,
+                formatter: function (p) { return p.name + "\n" + formatCompact(p.data.value); }
+            },
+            labelLine: { show: true, length: 8, length2: 8 },
+            data: items
+        }]
+    };
+}
+
+function renderHomeDonutCard(row, title, badge, rows) {
+    if (!row || !rows || !rows.length) return;
+    const id = "homeDonut_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+    const div = document.createElement("div");
+    div.className = "chart-card";
+    div.innerHTML =
+        '<div class="chart-header">' +
+            '<div class="chart-title">' + escapeHtml(title) + '</div>' +
+            '<div class="chart-badge">' + escapeHtml(badge) + '</div>' +
+        '</div>' +
+        '<div class="echart-box" id="' + id + '" style="height:260px;"></div>';
+    row.appendChild(div);
+
+    const chart = echarts.init(document.getElementById(id));
+    chart.setOption(buildHomeDonutOption(rows));
+    chartRegistry.push(chart);
+}
+
+function renderHomeDonuts(data) {
+    if (window.FILTER_MODE !== "home") return;
+    const row = document.getElementById("chartsRowDonuts");
+    if (!row) return;
+    renderHomeDonutCard(row, "توزيع البنود حسب نوع البند", "ملزم / غير ملزم - قيمة وعدد", data.itemTypeBreakdown);
+    renderHomeDonutCard(row, "توزيع البنود حسب النطاق", "الأمانة / البلديات - قيمة وعدد", data.scopeBreakdown);
 }
 
 /* ==========================================================================

@@ -1,0 +1,105 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "الملخص التنفيذي";
+    ViewData["FullWidth"] = "1";
+    ViewData["HasSidebar"] = "1";
+    ViewData["SidebarDrawerAlways"] = "1";
+}
+
+<div class="dashboard-layout home-shell">
+    <aside class="sidebar-nav scope-nav">
+        <div class="sidebar-nav-title">
+            <span>لوحة التنقّل</span>
+            <button class="nav-close" id="navClose" type="button" aria-label="إغلاق القائمة"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="sidebar-scroll">
+            <partial name="_PageNavSidebar" />
+        </div>
+    </aside>
+
+    <section class="dashboard-content">
+        <div class="nav-bar-row">
+            <a href="@Url.Action("Index", "Home")" class="back-btn"
+               onclick="if(document.referrer && document.referrer.indexOf(location.origin)===0){history.back();return false;}">
+                @Icons.Svg("back", "btn-svg") <span>رجوع</span>
+            </a>
+            <div class="breadcrumb-bar">
+                <a href="@Url.Action("Index", "Home")">الرئيسية</a>
+                <span>/</span>
+                <span>الملخص التنفيذي</span>
+            </div>
+        </div>
+
+        <div class="dash-header-row">
+            <div class="dash-header-info">
+                <div class="dash-icon-badge">@Icons.Svg("report", "")</div>
+                <div>
+                    <div class="page-title" style="margin-bottom:0;">الملخص التنفيذي</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="execContent">
+            <div class="dash-filter-bar" style="margin-bottom:16px;">
+                <div class="filter-select-wrap">
+                    <i class="bi bi-buildings filter-icon"></i>
+                    <select id="exsScopeFilter" class="filter-select">
+                        <option value="All">الأمانة والبلديات (الكل)</option>
+                        <option value="Amanah">الأمانة</option>
+                        <option value="Baladiyah">البلديات</option>
+                    </select>
+                    <i class="bi bi-chevron-down filter-chevron"></i>
+                </div>
+                <div class="filter-select-wrap">
+                    <i class="bi bi-diagram-3 filter-icon"></i>
+                    <select id="exsMainItemFilter" class="filter-select">
+                        <option value="">كل البنود الرئيسية</option>
+                    </select>
+                    <i class="bi bi-chevron-down filter-chevron"></i>
+                </div>
+                <div class="filter-select-wrap">
+                    <i class="bi bi-list-nested filter-icon"></i>
+                    <select id="exsSubItemFilter" class="filter-select" disabled>
+                        <option value="">كل البنود الفرعية</option>
+                    </select>
+                    <i class="bi bi-chevron-down filter-chevron"></i>
+                </div>
+            </div>
+
+            <div class="tarh-kpi-grid" id="exsRow1Kpis"></div>
+            <div class="exs-dept-grid" id="exsRow1Charts"></div>
+            <div class="no-data-box" id="exsRow1NoData" style="display:none;">
+                <div class="nd-icon"><i class="bi bi-lightbulb"></i></div>لا توجد بيانات فرص/عقود مستوردة بعد
+            </div>
+
+            <div class="charts-grid-2">
+                <div class="chart-card" id="exsRow2GaugeCard"></div>
+                <div class="chart-card" id="exsRow2PeriodCard"></div>
+            </div>
+
+            <div class="charts-grid-2" id="exsRow3"></div>
+            <div class="no-data-box" id="exsRow3NoData" style="display:none;">
+                <div class="nd-icon"><i class="bi bi-alert"></i></div>لا توجد بيانات مديونيات مستوردة بعد
+            </div>
+
+            <div id="exsDeptProSection"></div>
+            <div class="no-data-box" id="exsDeptProNoData" style="display:none;">
+                <div class="nd-icon"><i class="bi bi-alert"></i></div>لا توجد بيانات مطالبات مستوردة بعد
+            </div>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script>
+        window.EXEC_REVENUE_PERF_URL = "@Url.Action("RevenuePerf", "ExecutiveSummary")";
+        window.EXEC_DEPT_URL = "@Url.Action("DeptData", "ExecutiveSummary")";
+        window.EXEC_DEBT_URL = "@Url.Action("DebtData", "ExecutiveSummary")";
+        window.EXEC_CLAIMS_URL = "@Url.Action("ClaimsData", "ExecutiveSummary")";
+        window.EXEC_TARH_OPPORTUNITIES_URL = "@Url.Action("TarhOpportunitiesSummary", "ExecutiveSummary")";
+        window.EXEC_TARGET_ACHIEVEMENT_URL = "@Url.Action("TargetAchievement", "ExecutiveSummary")";
+        window.EXEC_TARGET_FILTER_OPTIONS_URL = "@Url.Action("TargetFilterOptions", "ExecutiveSummary")";
+    </script>
+    <script src="~/js/executive-summary.js" asp-append-version="true"></script>
+}

@@ -52,8 +52,14 @@ namespace ExcelDashboard.Services
         private static readonly string[] ClassificationColumnKeywords = { "تصنيف البند", "تصنيف" };
 
         // عمود المنطقة (أمانة / بلدية) - يميّز بين البند بنفس الاسم عند الأمانة أو عند البلدية
+        // (لمطابقة نطاق البند وقت الاستيراد فقط - مستقل تمامًا عن عمود "الأمانة/بلدى" أدناه رغم
+        // تشابه الغرض الظاهري: المستخدمة أكّدت أنهما عمودان منفصلان فعليًا بالملف)
         private const string RegionColumnName = "المنطقة";
-        private static readonly string[] RegionColumnKeywords = { "المنطقة", "الأمانة/بلدى", "النطاق" };
+        private static readonly string[] RegionColumnKeywords = { "المنطقة", "النطاق" };
+
+        // عمود "الأمانة/بلدى" - أول عمود بالملف حسب تأكيد المستخدمة، مستقل تمامًا عن عمود
+        // "المنطقة" أعلاه - يُستخدم حصريًا لدونات "الأمانة/البلديات" بالصفحة الرئيسية
+        private const string AmanahBaladiColumnName = "الأمانة/بلدى";
 
         // عمود الجهة (امانة منطقة المدينة المنورة / بلدية الحناكية / بلدية العلا ...)
         // يُخزَّن مع كل سجل حتى تُعرض لوحة مستقلة لكل بلدية
@@ -62,6 +68,10 @@ namespace ExcelDashboard.Services
 
         private const string PreferredCategoryColumnName = "البند";
         private static readonly string[] CategoryColumnKeywords = { "البند", "نوع البند" };
+
+        // عمود "نوع البند" (ملزم/غير ملزم) - مستقل تمامًا عن عمود "البند" أعلاه رغم تشابه الاسم
+        // (مطابقة دقيقة فقط لتفادي أي التباس مع "البند")، يُستخدم بدونات "ملزم/غير ملزم" بالصفحة الرئيسية
+        private const string ItemTypeColumnName = "نوع البند";
 
         // عمود "رقم البند" - معرّف مستقر للبند الفرعي، يُستخدم لمطابقة البند الفرعي الصحيح بدل
         // الاعتماد فقط على نص عمود "البند" (الذي قد يتغيّر بين رفعة وأخرى لنفس البند فعليًا)
@@ -414,19 +424,35 @@ namespace ExcelDashboard.Services
             }
 
             // 1.ب) عمود "المنطقة" (أمانة / بلدية) - ضروري للتفريق بين بند مثل "رسوم" بالأمانة
-            // و"رسوم" بالبلدية، لأن الاثنين لهما نفس الاسم بالضبط
+            // و"رسوم" بالبلدية، لأن الاثنين لهما نفس الاسم بالضبط. المطابقة التقريبية تُطبَّع
+            // الأحرف العربية (أ/إ/آ→ا، ة→ه، ى→ي) قبل المقارنة - عكس FindColumn العادية (Contains
+            // حرفي فقط) - لأن عنوان هذا العمود قد يُكتب بأكثر من شكل بملفات مختلفة
             string? regionCol = allColumnNames.FirstOrDefault(c => Normalize(c) == Normalize(RegionColumnName))
-                ?? FindColumn(textCols.Where(c => c != classificationCol).ToList(), RegionColumnKeywords);
+                ?? textCols.Where(c => c != classificationCol)
+                    .FirstOrDefault(c => RegionColumnKeywords.Any(k => Normalize(c).Contains(Normalize(k))));
+
+            // 1.ب.٢) عمود "الأمانة/بلدى" - عمود مستقل تمامًا عن "المنطقة" أعلاه (تأكيد صريح من
+            // المستخدمة: عمودان منفصلان بالملف، هذا تحديدًا أول عمود بالبيانات). مطابقة دقيقة
+            // بالاسم أولاً، ثم مطابقة تقريبية (تحتوي "امانه" و"بلد" معًا - تتحمّل فروق المسافات
+            // حول "/" واختلاف كتابة "بلدي/بلدى")، وإلا أول عمود بالملف (غير "تصنيف البند") كاحتياطي
+            string? amanahBaladiCol = allColumnNames.FirstOrDefault(c => Normalize(c) == Normalize(AmanahBaladiColumnName) && c != classificationCol)
+                ?? allColumnNames.FirstOrDefault(c => c != classificationCol
+                    && Normalize(c).Contains("امانه") && Normalize(c).Contains("بلد"))
+                ?? allColumnNames.FirstOrDefault(c => c != classificationCol);
 
             // 1.ج) عمود "الجهة" (امانة المدينة / بلدية الحناكية...) - يُخزَّن مع كل سجل
             // حتى يمكن عرض لوحة بيانات مستقلة لكل بلدية
             string? entityCol = allColumnNames.FirstOrDefault(c => Normalize(c) == Normalize(EntityColumnName))
                 ?? FindColumn(textCols.Where(c => c != classificationCol && c != regionCol).ToList(), EntityColumnKeywords);
 
-            // 2) عمود الفئة/البند التفصيلي (لعرضه بالرسوم البيانية والتصفية التفاعلية)
+            // 1.د) عمود "نوع البند" (ملزم/غير ملزم) - مطابقة دقيقة فقط، مستقل عن عمود "البند" أدناه
+            string? itemTypeCol = allColumnNames.FirstOrDefault(c => Normalize(c) == Normalize(ItemTypeColumnName) && c != classificationCol);
+
+            // 2) عمود الفئة/البند التفصيلي (لعرضه بالرسوم البيانية والتصفية التفاعلية) - يُستبعَد
+            // عمود "نوع البند" أعلاه من هذا البحث حتى لا يُعاد استخدام نفس العمود لغرضين مختلفين
             string? categoryCol = allColumnNames.FirstOrDefault(c => Normalize(c) == Normalize(PreferredCategoryColumnName) && c != classificationCol)
-                ?? FindColumn(textCols.Where(c => c != classificationCol).ToList(), CategoryColumnKeywords)
-                ?? textCols.FirstOrDefault(c => c != classificationCol);
+                ?? FindColumn(textCols.Where(c => c != classificationCol && c != itemTypeCol).ToList(), CategoryColumnKeywords)
+                ?? textCols.FirstOrDefault(c => c != classificationCol && c != itemTypeCol);
 
             // 2.ب) عمود "رقم البند" - قد يكون نصيًا أو رقميًا حسب الملف، فنبحث بكل الأعمدة
             string? itemNumberCol = allColumnNames.FirstOrDefault(c => Normalize(c) == Normalize(ItemNumberColumnName))
@@ -820,6 +846,8 @@ namespace ExcelDashboard.Services
                     SectionId = matchedSection.Id,
                     ImportedByUserId = userId,
                     Category = categoryCol != null ? GetString(row, categoryCol) : null,
+                    ItemType = itemTypeCol != null ? GetString(row, itemTypeCol)?.Trim() : null,
+                    AmanahBaladiRaw = amanahBaladiCol != null ? GetString(row, amanahBaladiCol)?.Trim() : null,
                     Entity = entityCol != null ? CleanEntityName(GetString(row, entityCol)) : null,
                     ContractNumber = contractCol != null ? GetString(row, contractCol) : null,
                     ContractName = string.IsNullOrWhiteSpace(contractName) ? null : contractName,

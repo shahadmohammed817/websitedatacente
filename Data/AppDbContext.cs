@@ -18,8 +18,12 @@ namespace ExcelDashboard.Data
         public DbSet<RevenueBaselineCollectedItem> RevenueBaselineCollectedItems => Set<RevenueBaselineCollectedItem>();
         public DbSet<ContractRecord> ContractRecords => Set<ContractRecord>();
         public DbSet<DebtInvoiceRecord> DebtInvoiceRecords => Set<DebtInvoiceRecord>();
+        public DbSet<DebtforallRecord> DebtforallRecords => Set<DebtforallRecord>();
         public DbSet<ClaimExecutionRecord> ClaimExecutionRecords => Set<ClaimExecutionRecord>();
         public DbSet<ContractPeriodRecord> ContractPeriodRecords => Set<ContractPeriodRecord>();
+        public DbSet<InvestmentContractRecord> InvestmentContractRecords => Set<InvestmentContractRecord>();
+        public DbSet<InvestmentActivityRecord> InvestmentActivityRecords => Set<InvestmentActivityRecord>();
+        public DbSet<OpenRequestRecord> OpenRequestRecords => Set<OpenRequestRecord>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -271,7 +275,7 @@ namespace ExcelDashboard.Data
                     new Section { Id = baseId + 3, NameAr = "الاستثمارات السياحية والترفيهية", NameEn = "Tourism & Entertainment Investments", Slug = $"{item.Prefix}-dept-commercial-tourism", Scope = ScopeType.Amanah, Icon = "🎡", SortOrder = 3, IsActive = true, ParentSectionId = baseId }
                 );
 
-                // الإدارة العامة الثانية: محافظ الاستثمارات التنموية
+                // الإدارة العامة الثانية: محافظ الاستثمارات  التنموية
                 modelBuilder.Entity<Section>().HasData(
                     new Section { Id = baseId + 4, NameAr = "الإدارة العامة لمحافظ الاستثمارات التنموية", NameEn = "GD - Development Investments Portfolio", Slug = $"{item.Prefix}-dept-development", Scope = ScopeType.Amanah, Icon = "🏗️", SortOrder = 2, IsActive = true, ParentSectionId = item.ParentId },
                     new Section { Id = baseId + 5, NameAr = "الاستثمارات التعليمية والرياضية والمجتمعية", NameEn = "Education, Sports & Community Investments", Slug = $"{item.Prefix}-dept-development-education", Scope = ScopeType.Amanah, Icon = "🎓", SortOrder = 1, IsActive = true, ParentSectionId = baseId + 4 },
@@ -334,3 +338,8 @@ namespace ExcelDashboard.Data
         }
     }
 }
+
+
+
+
+

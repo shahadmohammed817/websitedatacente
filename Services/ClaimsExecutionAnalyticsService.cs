@@ -24,6 +24,14 @@ namespace ExcelDashboard.Services
         // 4) نسبة المطالبات = المتبقي ÷ الإجمالي × 100
         public decimal RemainingPercent { get; set; }
 
+        // ==================== رسم "المسار الصحيح / أكتملت المدة / لم تكتمل المدة" ====================
+        // "المسار الصحيح" = نفس تعريف TotalCount/TotalValue أعلاه (كل الحالات ما عدا الحالتين
+        // التاليتين)، والعمودان الآخران لكل حالة استثناء لحالها
+        public int CompletedPeriodCount { get; set; }
+        public decimal CompletedPeriodValue { get; set; }
+        public int IncompletePeriodCount { get; set; }
+        public decimal IncompletePeriodValue { get; set; }
+
         // ==================== رسم عمودي: معالج/متبقي حسب الإدارة العامة (رسم 1) والفرعية (رسم 2) ====================
         public List<string> DeptLabels { get; set; } = new();
         public List<int> DeptProcessedCounts { get; set; } = new();
@@ -79,11 +87,11 @@ namespace ExcelDashboard.Services
         // تصنيف حالات "حالة المطالبة" (ClaimStatusFull) الثلاثة حسب طلب المستخدمة - بالاسم الحرفي
         // الموجود فعليًا بالملف (تأكّدت منه بفحص مباشر)، مطابَق بتطبيع (Normalize) يتسامح مع
         // اختلاف الهمزة (أ/إ/آ/ا) بين نسخ الملف المختلفة
-        private static readonly string[] ExcludedFromTotal =
-        {
-            "أكتملت المدة النظامية لرفع المطالبة",
-            "لم تكتمل المدة النظامية لرفع المطالبات التنفيذية"
-        };
+        private const string CompletedPeriodStatus = "أكتملت المدة النظامية لرفع المطالبة";
+        // اسم هذي الحالة بالملف الفعلي فيه أخطاء إملائية ("النضامية" بدل "النظامية"، و"الطالبات"
+        // بدل "الطلبات/المطالبات" - تأكّدنا منها بفحص مباشر لقيم العمود) لا يلتقطها Normalize
+        // العادي (يطبّع الهمزة فقط، لا الظاء/الضاد) - نطابق بجزء مختصر قبل منطقة الأخطاء تمامًا
+        private const string IncompletePeriodStableSubstring = "لم تكتمل المده";
         private static readonly string[] ProcessedStatuses =
         {
             "مطالبة تم الغاؤها بطلب من موظف الامانة",
@@ -98,11 +106,14 @@ namespace ExcelDashboard.Services
             "مطالبة تم رفضها عن طريق نظام القضايا"
         };
 
-        private static readonly HashSet<string> ExcludedFromTotalNorm = ExcludedFromTotal.Select(DataImportService.Normalize).ToHashSet();
         private static readonly HashSet<string> ProcessedStatusesNorm = ProcessedStatuses.Select(DataImportService.Normalize).ToHashSet();
         private static readonly HashSet<string> RemainingStatusesNorm = RemainingStatuses.Select(DataImportService.Normalize).ToHashSet();
 
-        private static bool IsExcluded(string? status) => status != null && ExcludedFromTotalNorm.Contains(DataImportService.Normalize(status));
+        private static readonly string CompletedPeriodNorm = DataImportService.Normalize(CompletedPeriodStatus);
+        private static readonly string IncompletePeriodSubstringNorm = DataImportService.Normalize(IncompletePeriodStableSubstring);
+        private static bool IsCompletedPeriod(string? status) => status != null && DataImportService.Normalize(status) == CompletedPeriodNorm;
+        private static bool IsIncompletePeriod(string? status) => status != null && DataImportService.Normalize(status).Contains(IncompletePeriodSubstringNorm);
+        private static bool IsExcluded(string? status) => IsCompletedPeriod(status) || IsIncompletePeriod(status);
         private static bool IsProcessed(string? status) => status != null && ProcessedStatusesNorm.Contains(DataImportService.Normalize(status));
         private static bool IsRemaining(string? status) => status != null && RemainingStatusesNorm.Contains(DataImportService.Normalize(status));
 
@@ -132,7 +143,7 @@ namespace ExcelDashboard.Services
             if (!string.IsNullOrWhiteSpace(invoiceNumber)) rows = rows.Where(r => r.InvoiceNumber != null && r.InvoiceNumber.Contains(invoiceNumber));
             var filteredRows = rows.ToList();
 
-            decimal Value(IEnumerable<ClaimExecutionRecord> recs) => recs.Sum(r => r.PaymentValueWithTax ?? 0);
+            decimal Value(IEnumerable<ClaimExecutionRecord> recs) => recs.Sum(r => r.PaymentValueWithoutTax ?? 0);
 
             // ==================== كروت KPI ====================
             var totalRows = filteredRows.Where(r => !IsExcluded(r.ClaimStatusFull)).ToList();
@@ -149,6 +160,15 @@ namespace ExcelDashboard.Services
 
             result.RemainingPercent = result.TotalCount > 0
                 ? Math.Round((decimal)result.RemainingCount / result.TotalCount * 100, 1) : 0;
+
+            // ==================== رسم "المسار الصحيح / أكتملت المدة / لم تكتمل المدة" ====================
+            var completedPeriodRows = filteredRows.Where(r => IsCompletedPeriod(r.ClaimStatusFull)).ToList();
+            result.CompletedPeriodCount = completedPeriodRows.Count;
+            result.CompletedPeriodValue = Value(completedPeriodRows);
+
+            var incompletePeriodRows = filteredRows.Where(r => IsIncompletePeriod(r.ClaimStatusFull)).ToList();
+            result.IncompletePeriodCount = incompletePeriodRows.Count;
+            result.IncompletePeriodValue = Value(incompletePeriodRows);
 
             // ==================== رسم 1+2: معالج/متبقي حسب الإدارة العامة/الفرعية ====================
             var byDept = totalRows.Where(r => !string.IsNullOrWhiteSpace(r.GeneralDepartment))

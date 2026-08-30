@@ -1,0 +1,105 @@
+@{
+    Layout = "_Layout";
+    string scope = (ViewBag.Scope as string) ?? "Amanah";
+    bool isBaladiyah = string.Equals(scope, "Baladiyah", StringComparison.OrdinalIgnoreCase);
+    string pageTitle = isBaladiyah ? "جميع العقود الاستثمارية - بلدية" : "جميع العقود الاستثمارية";
+    ViewData["Title"] = pageTitle;
+    ViewData["FullWidth"] = "1";
+    ViewData["HasSidebar"] = "1";
+}
+
+<div class="dashboard-layout home-shell">
+    <aside class="sidebar-nav scope-nav">
+        <div class="sidebar-nav-title">
+            <span>لوحة التنقّل</span>
+            <button class="nav-close" id="navClose" type="button" aria-label="إغلاق القائمة"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="sidebar-scroll">
+            <partial name="_PageNavSidebar" />
+        </div>
+    </aside>
+
+    <section class="dashboard-content">
+        <div class="nav-bar-row">
+            <a href="@Url.Action("Index", "Home")" class="back-btn"
+               onclick="if(document.referrer && document.referrer.indexOf(location.origin)===0){history.back();return false;}">
+                @Icons.Svg("back", "btn-svg") <span>رجوع</span>
+            </a>
+            <div class="breadcrumb-bar">
+                <a href="@Url.Action("Index", "Home")">الرئيسية</a>
+                <span>/</span>
+                <span>@pageTitle</span>
+            </div>
+        </div>
+
+        <div class="dash-header-row">
+            <div class="dash-header-info">
+                <div class="dash-icon-badge">@Icons.Svg("contract", "")</div>
+                <div>
+                    <div class="page-title" style="margin-bottom:0;">@pageTitle</div>
+                    <div class="page-subtitle" style="margin-bottom:0;">
+                        @(isBaladiyah
+                            ? "الأجرة السنوية حسب حالة العقد، ومسار الدفعات والمتعثر"
+                            : "الأجرة السنوية، الدفعات المستحقة، والمتعثر - حسب الإدارة العامة والمحفظة")
+                    </div>
+                </div>
+            </div>
+            <div class="contract-actions read-only-hide" style="margin-bottom:0;">
+                <div class="tc-upload-wrap">
+                    <input type="file" id="invUploadInput" accept=".xlsx" hidden />
+                    <button type="button" id="invUploadBtn" class="tc-upload-btn">
+                        <i class="bi bi-upload"></i>
+                        <span>رفع ملف العقود</span>
+                    </button>
+                    <span id="invUploadStatus" class="tc-upload-status"></span>
+                </div>
+            </div>
+        </div>
+
+        <div id="invFilterBar" class="dash-filter-bar" style="margin-bottom:14px;"></div>
+
+        @if (isBaladiyah)
+        {
+            <div id="invContent">
+                <div class="tarh-kpi-grid" id="invKpiGrid"></div>
+
+                <div class="charts-grid-3 tc-row-single" id="invBRow1" style="margin-bottom:18px;"></div>
+                <div class="charts-grid-3" id="invBRow2" style="margin-bottom:18px;"></div>
+                <div class="charts-grid-3 tc-row-single" id="invBRow3"></div>
+            </div>
+        }
+        else
+        {
+            <div id="invContent">
+                <div class="tarh-kpi-grid" id="invKpiGrid"></div>
+
+                <div class="charts-grid-3 tc-row-single" id="invChartsRow1" style="margin-bottom:18px;"></div>
+                <div class="charts-grid-3" id="invChartsRow2" style="margin-bottom:18px;"></div>
+                <div class="charts-grid-3" id="invChartsRow2b" style="margin-bottom:18px;"></div>
+                <div class="charts-grid-3" id="invChartsRow3" style="margin-bottom:18px;"></div>
+                <div class="charts-grid-3 tc-row-single" id="invChartsRow4"></div>
+            </div>
+        }
+
+        <div class="no-data-box" id="invNoDataBox" style="display:none;">
+            <span class="nd-icon">@Icons.Svg("inbox", "")</span>
+            لا توجد بيانات عقود استثمارية مستوردة بعد. اضغط "رفع ملف العقود" أعلى الصفحة للبدء.
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script>
+        window.INV_DATA_URL = "@Url.Action("Data", "InvestmentContracts", new { scope = scope })";
+        window.INV_UPLOAD_URL = "@Url.Action("Upload", "InvestmentContracts")";
+    </script>
+    @if (isBaladiyah)
+    {
+        <script src="~/js/investment-contracts-baladiyah.js" asp-append-version="true"></script>
+    }
+    else
+    {
+        <script src="~/js/investment-contracts.js" asp-append-version="true"></script>
+    }
+}

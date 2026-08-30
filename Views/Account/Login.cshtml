@@ -1,0 +1,38 @@
+@{
+    Layout = null;
+    ViewData["Title"] = "تسجيل الدخول";
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>تسجيل الدخول - لوحة بيانات أمانة منطقة المدينة المنورة</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=Cairo:wght@600;700;800;900&display=swap" rel="stylesheet" />
+    <link href="~/css/site.css" rel="stylesheet" asp-append-version="true" />
+</head>
+<body>
+    <div class="login-wrap">
+        <img src="~/images/logo.png" alt="أمانة منطقة المدينة المنورة" class="login-logo" />
+
+        <div class="login-card">
+            <div class="login-title">تسجيل الدخول</div>
+
+            @if (ViewBag.Error != null)
+            {
+                <div class="login-error">@ViewBag.Error</div>
+            }
+
+            <form method="post" action="@Url.Action("Login", "Account")">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+
+                <label class="form-label-ar" for="employeeNumber">الرقم الوظيفي</label>
+                <input type="text" inputmode="numeric" class="form-control-ar" id="employeeNumber" name="employeeNumber" placeholder="مثال: 10002" autofocus required />
+
+                <button type="submit" class="btn-brand">دخول</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

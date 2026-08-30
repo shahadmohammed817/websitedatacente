@@ -276,31 +276,34 @@ function clxRenderDeptCharts(data) {
 }
 
 /* ==========================================================================
-   "المديونيات حسب الفترة" - عمود (قيمة) + خط (عدد)، نفس تصميم صفحة المديونيات بالضبط -
-   من صفوف حالة الدفعة=غير محصّلة فقط، مصنّفة بعمود "الفترة" (2022-2025 / 2026)
+   "المديونيات حسب الفترة" - Lollipop أفقي (نفس شكل رسمة "المديونيات لكل البنود" بالضبط):
+   الشكل نفسه يعرض القيمة، والتلميح عند التمرير يعرض عدد المطالبات - من صفوف حالة
+   الدفعة=غير محصّلة فقط، مصنّفة بعمود "الفترة" (2022-2025 / 2026)
    ========================================================================== */
+const CLX_PERIOD_COLORS = [CLX_C.mid, CLX_C.limeDk, CLX_C.dark];
+
 function clxBuildPeriodOption(labels, values, counts) {
     return {
-        tooltip: clxTooltip({ trigger: "axis" }),
-        legend: { top: 0, right: 8, textStyle: Object.assign({}, CLX_AXIS_LABEL_STYLE), itemWidth: 12, itemHeight: 10 },
-        grid: { left: 16, right: 16, top: 56, bottom: 30, containLabel: true },
-        xAxis: clxAxisStyle({ type: "category", data: labels, axisLabel: { fontSize: 11 } }),
-        yAxis: [
-            clxAxisStyle({ type: "value", axisLabel: { show: false }, splitLine: { show: false } }),
-            clxAxisStyle({ type: "value", axisLabel: { show: false }, splitLine: { show: false } })
-        ],
+        tooltip: clxTooltip({
+            trigger: "axis",
+            formatter: function (params) {
+                const p = params[params.length - 1];
+                return '<div style="font-weight:700;">' + clxEscape(p.name) + '</div><div>عدد المطالبات: <strong>' + clxFormatNum(counts[p.dataIndex]) + '</strong></div>';
+            }
+        }),
+        grid: { left: 10, right: 60, top: 20, bottom: 10, containLabel: true },
+        yAxis: clxAxisStyle({ type: "category", data: labels, inverse: true, axisLabel: { fontSize: 12 } }),
+        xAxis: clxAxisStyle({ type: "value", min: 0, axisLabel: { show: false }, splitLine: { show: false } }),
         series: [
             {
-                name: "القيمة", type: "bar", data: values, yAxisIndex: 0, barMaxWidth: 46, z: 1,
-                itemStyle: { color: CLX_C.dark, borderRadius: [4, 4, 0, 0] },
-                label: { show: true, position: "top", offset: [0, -4], color: CLX_C.axisText, fontWeight: 700, fontSize: 10, formatter: function (p) { return clxFormatNum(p.value); } }
+                name: "العصا", type: "bar", data: values, barWidth: 4,
+                itemStyle: { color: function (p) { return CLX_PERIOD_COLORS[p.dataIndex % CLX_PERIOD_COLORS.length]; } },
+                silent: true, tooltip: { show: false }
             },
             {
-                name: "عدد المطالبات", type: "line", data: counts, yAxisIndex: 1, z: 2, smooth: true,
-                symbol: "circle", symbolSize: 7,
-                lineStyle: { color: CLX_C.lime, width: 2.5 },
-                itemStyle: { color: CLX_C.lime },
-                label: { show: true, position: "top", offset: [0, -22], color: CLX_C.limeDk, fontWeight: 800, fontSize: 10, formatter: function (p) { return clxFormatNum(p.value); } }
+                name: "القيمة", type: "scatter", data: values, symbolSize: 22,
+                itemStyle: { color: function (p) { return CLX_PERIOD_COLORS[p.dataIndex % CLX_PERIOD_COLORS.length]; } },
+                label: { show: true, position: "right", formatter: function (p) { return clxFormatNum(p.value); }, color: CLX_C.text, fontWeight: 800, fontSize: 12 }
             }
         ]
     };
@@ -323,11 +326,15 @@ function clxBuildRemainingDonutOption(rows, total) {
             }
         }),
         series: [{
-            type: "pie", radius: ["42%", "70%"], center: ["50%", "50%"],
+            type: "pie", radius: ["46%", "76%"], center: ["50%", "50%"],
             itemStyle: { borderColor: "#fff", borderWidth: 2 },
             label: { show: false }, labelLine: { show: false },
             data: items
-        }]
+        }],
+        graphic: [
+            { type: "text", left: "center", top: "39%", style: { text: clxFormatNum(total), fontSize: 20, fontWeight: 800, fill: CLX_C.text, fontFamily: "Cairo", textAlign: "center" } },
+            { type: "text", left: "center", top: "55%", style: { text: "إجمالي العدد", fontSize: 10, fontWeight: 700, fill: CLX_C.muted, fontFamily: "Cairo", textAlign: "center" } }
+        ]
     };
 }
 
@@ -352,7 +359,7 @@ function clxRenderRemainingDonutDetail(rows, total) {
 
 function clxRenderPeriodAndDonut(data) {
     clxRenderChart("clxChartsRow2", "clxPeriodChart", "المديونيات حسب الفترة", null,
-        clxBuildPeriodOption(data.periodLabels || [], data.periodValues || [], data.periodCounts || []), 320);
+        clxBuildPeriodOption(data.periodLabels || [], data.periodValues || [], data.periodCounts || []), 260);
 
     const total = (data.remainingStatusBreakdown || []).reduce(function (s, r) { return s + r.count; }, 0);
     const row = document.getElementById("clxChartsRow2");
@@ -362,7 +369,7 @@ function clxRenderPeriodAndDonut(data) {
         div.className = "chart-card";
         div.innerHTML =
             '<div class="chart-header"><div class="chart-title">توزيع حالات المطالبات المتبقية</div></div>' +
-            '<div class="echart-box" id="' + id + '" style="height:170px;max-width:220px;margin:0 auto;"></div>' +
+            '<div class="echart-box" id="' + id + '" style="height:220px;max-width:285px;margin:0 auto;"></div>' +
             '<div id="clxRemainingDetail" style="margin-top:10px;"></div>';
         row.appendChild(div);
         const chart = echarts.init(document.getElementById(id));
@@ -417,6 +424,53 @@ function clxInitUpload() {
 }
 
 /* ==========================================================================
+   رسم "المسار الصحيح / أكتملت المدة / لم تكتمل المدة" - عمود لكل حالة، بالقيمة
+   (ارتفاع العمود) وبجانبها العدد أسفل القيمة (نفس نمط كروت الـKPI)
+   ========================================================================== */
+function clxBuildPathColumnOption(rows) {
+    const labels = rows.map(function (r) { return r.label; });
+    return {
+        tooltip: clxTooltip({
+            trigger: "axis", axisPointer: { type: "shadow" },
+            formatter: function (params) {
+                var r = rows[params[0].dataIndex];
+                return '<div style="font-weight:700;margin-bottom:4px;">' + clxEscape(r.label) + '</div>' +
+                    '<div>القيمة: <strong>' + clxFormatNum(r.value) + '</strong></div>' +
+                    '<div>العدد: <strong>' + clxFormatNum(r.count) + '</strong></div>';
+            }
+        }),
+        grid: { left: 16, right: 16, top: 30, bottom: 40, containLabel: true },
+        xAxis: clxAxisStyle({ type: "category", data: labels, axisLabel: { interval: 0, rotate: 0, fontSize: 12, fontWeight: 700, width: 160, overflow: "break" } }),
+        yAxis: clxAxisStyle({ type: "value", min: 0, axisLabel: { show: false }, splitLine: { show: false } }),
+        series: [{
+            type: "bar", barMaxWidth: 90, barCategoryGap: "45%",
+            data: rows.map(function (r, i) { return { value: r.value, itemStyle: { color: CLX_PALETTE[i % CLX_PALETTE.length], borderRadius: [4, 4, 0, 0] } }; }),
+            label: {
+                show: true, position: "top", fontSize: 11, lineHeight: 18,
+                formatter: function (p) {
+                    var r = rows[p.dataIndex];
+                    return '{val|' + clxFormatNum(r.value) + '}\n{cnt|(' + clxFormatNum(r.count) + ' مطالبة)}';
+                },
+                rich: {
+                    val: { fontSize: 15, fontWeight: 800, color: CLX_C.axisText, lineHeight: 18 },
+                    cnt: { fontSize: 11, fontWeight: 700, color: CLX_C.muted, lineHeight: 15 }
+                }
+            }
+        }]
+    };
+}
+
+function clxRenderPathChart(data) {
+    const rows = [
+        { label: "المسار الصحيح", count: data.totalCount || 0, value: data.totalValue || 0 },
+        { label: "أكتملت المدة", count: data.completedPeriodCount || 0, value: data.completedPeriodValue || 0 },
+        { label: "لم تكتمل المدة", count: data.incompletePeriodCount || 0, value: data.incompletePeriodValue || 0 }
+    ];
+    clxRenderChart("clxChartsRow3", "clxPathChart", "المسار الصحيح مقابل أكتملت/لم تكتمل المدة النظامية", null,
+        clxBuildPathColumnOption(rows), 340);
+}
+
+/* ==========================================================================
    التحميل الرئيسي
    ========================================================================== */
 async function clxLoad() {
@@ -439,7 +493,7 @@ async function clxLoad() {
         if (noDataEl) noDataEl.style.display = "none";
 
         clxDisposeCharts();
-        ["clxChartsRow1", "clxChartsRow2"].forEach(function (id) {
+        ["clxChartsRow1", "clxChartsRow2", "clxChartsRow3"].forEach(function (id) {
             const el = document.getElementById(id);
             if (el) el.innerHTML = "";
         });
@@ -447,6 +501,7 @@ async function clxLoad() {
         clxRenderKpiCards(data);
         clxRenderDeptCharts(data);
         clxRenderPeriodAndDonut(data);
+        clxRenderPathChart(data);
     } catch (err) {
         console.error("تعذّر تحميل بيانات المطالبات:", err);
         if (contentEl) contentEl.style.display = "none";
@@ -493,7 +548,7 @@ function clxInitExport() {
                             '<td>' + clxEscape(r.claimStatusFull || "") + '</td>' +
                             '<td>' + clxEscape(r.generalDepartment || "") + '</td>' +
                             '<td>' + clxEscape(r.portfolio || "") + '</td>' +
-                            '<td>' + clxFormatNum(r.paymentValueWithTax || 0) + '</td>' +
+                            '<td>' + clxFormatNum(r.paymentValueWithoutTax || 0) + '</td>' +
                             '<td>' + clxFormatExportDate(r.paymentDueDate) + '</td>' +
                         '</tr>';
                     }).join("");

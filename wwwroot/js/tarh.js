@@ -408,11 +408,48 @@ function tarhBuildYearStatusDonutOption(rows, total) {
             }
         },
         series: [{
-            type: "pie", radius: ["38%", "64%"], center: ["36%", "50%"],
+            type: "pie", radius: ["44%", "72%"], center: ["36%", "50%"],
             itemStyle: { borderColor: "#fff", borderWidth: 2 },
             label: { show: false }, labelLine: { show: false },
             data: items
-        }]
+        }],
+        graphic: [
+            { type: "text", left: "36%", top: "40%", style: { text: tarhFormatNum(total), fontSize: 21, fontWeight: 800, fill: TARH_C.text, fontFamily: "Cairo", textAlign: "center" } },
+            { type: "text", left: "36%", top: "54%", style: { text: "إجمالي العدد", fontSize: 10, fontWeight: 700, fill: TARH_C.muted, fontFamily: "Cairo", textAlign: "center" } }
+        ]
+    };
+}
+
+// دونات "الفرص المطروحة القادمة" (صف 1، جنب رسم الإدارة العامة) - 3 قطاعات غير حصرية (الأسبوع
+// القادم ضمن الشهر القادم ضمن عام 2026 بالكامل)، لذا مركز الدونات يعرض إجمالي 2026 (الأشمل)
+// لا مجموع القيم الثلاث حتى لا يوحي برقم مضاعَف
+function tarhBuildUpcomingTendersDonutOption(upcoming) {
+    const rows = [
+        { name: "الأسبوع القادم", value: upcoming.nextWeekCount, color: TARH_C.lime },
+        { name: "الشهر القادم", value: upcoming.nextMonthCount, color: TARH_C.mid },
+        { name: "عام 2026", value: upcoming.year2026Count, color: TARH_C.dark }
+    ];
+    const items = rows.map(function (r) { return { name: r.name, value: r.value, itemStyle: { color: r.color } }; });
+    return {
+        tooltip: tarhTooltip({
+            trigger: "item",
+            formatter: function (p) { return '<div style="font-weight:700;">' + p.name + '</div><div>العدد: <strong>' + tarhFormatNum(p.value) + '</strong></div>'; }
+        }),
+        legend: {
+            orient: "vertical", left: "58%", top: "middle", type: "scroll",
+            textStyle: Object.assign({}, TARH_AXIS_LABEL_STYLE, { fontSize: 12 }),
+            itemWidth: 11, itemHeight: 11, itemGap: 10
+        },
+        series: [{
+            type: "pie", radius: ["46%", "74%"], center: ["30%", "50%"],
+            itemStyle: { borderColor: "#fff", borderWidth: 2 },
+            label: { show: false }, labelLine: { show: false },
+            data: items
+        }],
+        graphic: [
+            { type: "text", left: "30%", top: "40%", style: { text: tarhFormatNum(upcoming.year2026Count), fontSize: 20, fontWeight: 800, fill: TARH_C.text, fontFamily: "Cairo", textAlign: "center" } },
+            { type: "text", left: "30%", top: "54%", style: { text: "إجمالي 2026", fontSize: 10, fontWeight: 700, fill: TARH_C.muted, fontFamily: "Cairo", textAlign: "center" } }
+        ]
     };
 }
 
@@ -484,8 +521,9 @@ function tarhForceResize(chart) {
 }
 
 /* ==========================================================================
-   "تحت إجراءات الترسية" - قوس قابل للضغط + توزيع الحالات الثلاث قيد الإجراء تحته.
-   النسبة بالمنتصف = عدد الفرص بهذي الحالات ÷ إجمالي الفرص التي فُتحت مظاريفها × 100
+   "تحت إجراءات الترسية" - قوس قابل للضغط لفرص 2026 بالحالات الثلاث قيد الإجراء: أحمر = تجاوزت
+   30 يوم منذ فتح المظاريف، أخضر = ضمن 30 يوم. النسبة بالمنتصف = المتجاوزة ÷ إجمالي الفرص التي
+   فُتحت مظاريفها بـ2026 كلها × 100
    ========================================================================== */
 function tarhRenderDurationStatus(d) {
     const row = document.getElementById("tarhChartsRow3");
@@ -499,23 +537,25 @@ function tarhRenderDurationStatus(d) {
             '<div class="tarh-duration-header">' +
                 '<div class="tarh-duration-title"><i class="bi bi-stopwatch"></i> تحت إجراءات الترسية</div>' +
             '</div>' +
-            '<div class="no-data-box" style="margin:0;"><span class="nd-icon"><i class="bi bi-inbox"></i></span>لا توجد فرص فُتحت مظاريفها ضمن الفلاتر الحالية.</div>';
+            '<div class="no-data-box" style="margin:0;"><span class="nd-icon"><i class="bi bi-inbox"></i></span>لا توجد فرص فُتحت مظاريفها بسنة 2026 ضمن الفلاتر الحالية.</div>';
         row.appendChild(div);
         return;
     }
 
     const gaugeId = "tarhDurationGauge_" + Date.now();
-    const statusRows = d.statusBreakdown || [];
+    const statusListHtml = (d.statusBreakdown || []).map(function (s) {
+        return '<div class="tarh-duration-status-item"><span>' + tarhEscape(s.name) + '</span><span class="tarh-duration-status-count">' + tarhFormatNum(s.count) + '</span></div>';
+    }).join("");
     div.innerHTML =
         '<div class="tarh-duration-header">' +
-            '<div class="tarh-duration-title"><i class="bi bi-stopwatch"></i> تحت إجراءات الترسية</div>' +
+            '<div class="tarh-duration-title"><i class="bi bi-stopwatch"></i> تحت إجراءات الترسية 2026</div>' +
         '</div>' +
         '<div class="echart-box" id="' + gaugeId + '"></div>' +
         '<div class="tarh-duration-legend">' +
-            statusRows.map(function (s, i) {
-                return '<div class="tarh-duration-legend-item"><span class="tarh-duration-dot" style="background:' + TARH_PALETTE[i % TARH_PALETTE.length] + ';"></span> ' + tarhEscape(s.status) + ' — ' + tarhFormatNum(s.count) + '</div>';
-            }).join("") +
-        '</div>';
+            '<div class="tarh-duration-legend-item"><span class="tarh-duration-dot" style="background:' + TARH_C.red + ';"></span> تجاوزت 30 يوم — ' + tarhFormatNum(d.exceededCount) + '</div>' +
+            '<div class="tarh-duration-legend-item"><span class="tarh-duration-dot" style="background:' + TARH_C.limeDk + ';"></span> ضمن 30 يوم — ' + tarhFormatNum(d.withinCount) + '</div>' +
+        '</div>' +
+        (statusListHtml ? '<div class="tarh-duration-status-list">' + statusListHtml + '</div>' : '');
 
     row.appendChild(div);
 
@@ -540,28 +580,29 @@ function tarhRenderDurationStatus(d) {
     const gaugeBox = document.getElementById(gaugeId);
     gaugeBox.style.height = "230px";
     const gauge = echarts.init(gaugeBox);
-    gauge.setOption(tarhBuildDurationGaugeOption(d.pendingPercent, d.pendingCount, d.totalCount));
+    gauge.setOption(tarhBuildDurationGaugeOption(d.exceededPercent, d.exceededCount, d.withinCount));
     tarhCharts.push(gauge);
     tarhForceResize(gauge);
 
-    // الضغط على القوس يعرض "تتبع الفرصة" لكل الفرص قيد الإجراء (الحالات الثلاث معًا)
+    // الضغط على الجزء الأحمر يعرض المتجاوزة 30 يوم فقط، والأخضر يعرض الضمن 30 يوم فقط
     gauge.on("click", function (params) {
         if (!params.data || params.data.name === "gap") return;
-        tarhShowTrackPanel(null);
+        tarhShowTrackPanel(params.data.name === "over" ? "over" : "within");
     });
 }
 
 /* ==========================================================================
-   قوس "تحت إجراءات الترسية" - نسبة الفرص قيد الإجراء (لايم) من إجمالي الفرص التي
-   فُتحت مظاريفها، والباقي (رمادي) - Donut نصف دائرة بنفس تصميم بقية أقواس الموقع
+   قوس "تحت إجراءات الترسية" - أحمر = تجاوزت 30 يوم منذ فتح المظاريف، أخضر = ضمن 30 يوم.
+   النسبة بالمنتصف = المتجاوزة (أحمر) من إجمالي الفرص المطروحة 2026 - Donut نصف دائرة
+   بنفس تصميم بقية أقواس الموقع
    ========================================================================== */
-function tarhBuildDurationGaugeOption(pendingPct, pendingCount, totalCount) {
-    var remaining = Math.max(totalCount - pendingCount, 0);
+function tarhBuildDurationGaugeOption(exceededPct, exceededCount, withinCount) {
+    var total = exceededCount + withinCount;
     return {
         tooltip: tarhTooltip({
             formatter: function (p) {
                 if (p.data.name === "gap") return "";
-                var label = p.data.name === "pending" ? "قيد إجراءات الترسية" : "باقي الفرص";
+                var label = p.data.name === "over" ? "تجاوزت 30 يوم" : "ضمن 30 يوم";
                 return '<div style="font-weight:700;">' + label + '</div><div>' + tarhFormatNum(p.data.value) + ' فرصة</div>';
             }
         }),
@@ -574,19 +615,19 @@ function tarhBuildDurationGaugeOption(pendingPct, pendingCount, totalCount) {
             label: { show: false }, labelLine: { show: false },
             emphasis: { scaleSize: 6 },
             data: [
-                { value: pendingCount, name: "pending", itemStyle: { color: TARH_C.lime } },
-                { value: remaining, name: "rest", itemStyle: { color: TARH_C.red } },
-                { value: totalCount * 0.5, name: "gap", itemStyle: { color: "transparent" }, label: { show: false }, tooltip: { show: false }, silent: true }
+                { value: exceededCount, name: "over", itemStyle: { color: TARH_C.red } },
+                { value: withinCount, name: "within", itemStyle: { color: TARH_C.limeDk } },
+                { value: total * 0.5, name: "gap", itemStyle: { color: "transparent" }, label: { show: false }, tooltip: { show: false }, silent: true }
             ]
         }],
         graphic: [
             {
                 type: "text", left: "center", top: "48%",
-                style: { text: pendingPct.toFixed(1) + "%", fontSize: 22, fontWeight: 800, fill: TARH_C.text, fontFamily: "Cairo", textAlign: "center" }
+                style: { text: exceededPct.toFixed(1) + "%", fontSize: 22, fontWeight: 800, fill: TARH_C.text, fontFamily: "Cairo", textAlign: "center" }
             },
             {
                 type: "text", left: "center", top: "62%",
-                style: { text: "قيد إجراءات الترسية", fontSize: 10, fontWeight: 700, fill: TARH_C.muted, textAlign: "center" }
+                style: { text: "تجاوزت 30 يوم", fontSize: 10, fontWeight: 700, fill: TARH_C.muted, textAlign: "center" }
             }
         ]
     };
@@ -638,7 +679,9 @@ function tarhRenderOpportunityList() {
         list.innerHTML = matches.map(function (o) {
             return '<div class="tarh-opp-item ' + tarhOppDotClass(o.durationStatus) + '" data-number="' + tarhEscape(o.opportunityNumber) + '">' +
                 '<span class="tarh-opp-item-text"><span class="tarh-opp-item-number">' + tarhEscape(o.opportunityNumber) + '</span>' +
-                    (o.opportunityName ? ' — ' + tarhEscape(o.opportunityName) : '') + '</span>' +
+                    (o.opportunityName ? ' — ' + tarhEscape(o.opportunityName) : '') +
+                    (o.investorName ? '<br><small>المستثمر: ' + tarhEscape(o.investorName) + '</small>' : '') +
+                    (o.contractNumber ? '<br><small>رقم العقد: ' + tarhEscape(o.contractNumber) + '</small>' : '') + '</span>' +
             '</div>';
         }).join("");
     }
@@ -751,10 +794,12 @@ async function tarhSearchOpportunity(rawValue) {
         var numColor = t.durationStatus ? (isWithinNum ? TARH_C.limeDk : TARH_C.red) : "inherit";
         var html = TARH_BACK_BTN_HTML;
         html += '<div style="margin-top:16px;">' +
-            '<div style="font-weight:800;color:var(--brand-dark);">' + tarhEscape(t.opportunityName || t.opportunityNumber) + '</div>' +
-            '<div style="font-size:.82rem;color:var(--muted);margin-top:2px;">رقم الفرصة: ' +
+            '<div style="font-weight:800;color:var(--brand-dark);">' + tarhEscape(t.investorName || t.opportunityName || t.opportunityNumber) + '</div>' +
+            '<div style="font-size:.82rem;color:var(--muted);margin-top:2px;">' + tarhEscape(t.opportunityName || "") +
+                (t.opportunityName ? ' • ' : '') + 'رقم الفرصة: ' +
                 '<strong style="color:' + numColor + ';">' + tarhEscape(t.opportunityNumber) + '</strong>' +
-                ' • رقم العقد: ' + tarhEscape(t.contractNumber) + ' • الحالة: ' + tarhEscape(t.status || "—") + '</div>' +
+                ' • رقم العقد: ' + tarhEscape(t.contractNumber) +
+                ' • الحالة: ' + tarhEscape(t.status || "—") + '</div>' +
         '</div>';
 
         html += '<div class="tarh-timeline">' +
@@ -805,7 +850,7 @@ async function tarhLoad() {
         const data = await resp.json();
 
         tarhDisposeCharts();
-        ["tarhChartsRow1", "tarhChartsRow3", "tarhChartsRow4", "tarhChartsRow5"].forEach(function (id) {
+        ["tarhUpcomingTendersSlot", "tarhChartsRow1", "tarhChartsRow3", "tarhChartsRow4", "tarhChartsRow5"].forEach(function (id) {
             const el = document.getElementById(id);
             if (el) el.innerHTML = "";
         });
@@ -822,6 +867,13 @@ async function tarhLoad() {
         if (noDataEl) noDataEl.style.display = "none";
 
         tarhRenderKpiCards(data.typeSummary, data.totalOpportunities);
+
+        // دونات "الفرص المطروحة القادمة" - جنب بطاقة "الفرص التي فُتحت مظاريفها" مباشرة أعلى الصفحة
+        tarhRenderChart(
+            "tarhUpcomingTendersSlot", "tarhUpcomingTendersChart",
+            "الفرص المطروحة القادمة", "دونات",
+            tarhBuildUpcomingTendersDonutOption(data.upcomingTenders || { nextWeekCount: 0, nextMonthCount: 0, year2026Count: 0 })
+        );
 
         // رسم 1 (عمودان جنبًا لجنب): عدد وقيمة الفرص المطروحة بعام 2026 حسب الإدارة العامة +
         // حسب الإدارة الفرعية للإدارة المختارة - نفس شكل الأعمدة الأفقية لكليهما، والضغط على
@@ -987,12 +1039,110 @@ function tarhInitExport() {
     }
 }
 
+// ==========================================================================
+// قسم "الفرص التي فُتحت مظاريفها" - نطاق تاريخ سريع (هذا الأسبوع/الشهر/آخر 30 يوم)، مستقل
+// عن صندوق فلاتر الصفحة الرئيسي (department/status/...)، بطلب المستخدمة لمتابعة الفرص
+// المفتوحة حديثًا بسرعة بلا حاجة لضبط فلاتر
+// ==========================================================================
+var tarhEnvelopeOpenedCache = [];
+var TARH_ENVELOPE_RANGE_LABELS = { week: "الأسبوع القادم", month: "الشهر القادم", year2026: "عام 2026" };
+
+// نفس نطاقات دونات "الفرص المطروحة القادمة" بالضبط (راجع GetTarhDataAsync.UpcomingTenders) -
+// الأسبوع/الشهر من اليوم فصاعدًا، وعام 2026 بالكامل (بصرف النظر عن الماضي/القادم) حتى يبقى
+// الرقم بالبطاقة مطابقًا لقطاع الدونات المقابل له
+function tarhEnvelopeRangeDates(range) {
+    var today = new Date();
+    var start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    var end;
+    if (range === "week") {
+        end = new Date(start);
+        end.setDate(start.getDate() + 7);
+    } else if (range === "month") {
+        end = new Date(start);
+        end.setMonth(start.getMonth() + 1);
+    } else {
+        start = new Date(2026, 0, 1);
+        end = new Date(2026, 11, 31);
+    }
+    return { start: start, end: end };
+}
+
+function tarhFormatDateInput(d) {
+    var y = d.getFullYear(), m = ("0" + (d.getMonth() + 1)).slice(-2), day = ("0" + d.getDate()).slice(-2);
+    return y + "-" + m + "-" + day;
+}
+
+async function tarhLoadEnvelopeOpened(range) {
+    var listEl = document.getElementById("tarhEnvelopeOpenedList");
+    var subtitleEl = document.getElementById("tarhEnvelopeOpenedSubtitle");
+    if (!listEl) return;
+
+    var dates = tarhEnvelopeRangeDates(range);
+    listEl.innerHTML = '<div class="no-data-box" style="margin:0;">جارِ التحميل...</div>';
+
+    try {
+        var url = window.TARH_ENVELOPE_OPENED_URL +
+            "?start=" + tarhFormatDateInput(dates.start) + "&end=" + tarhFormatDateInput(dates.end);
+        var resp = await fetch(url);
+        if (!resp.ok) throw new Error("network");
+        tarhEnvelopeOpenedCache = await resp.json();
+        tarhRenderEnvelopeOpened();
+        if (subtitleEl) {
+            subtitleEl.textContent = (TARH_ENVELOPE_RANGE_LABELS[range] || "") + " — " + tarhEnvelopeOpenedCache.length + " فرصة";
+        }
+    } catch (err) {
+        console.error("تعذّر تحميل قائمة الفرص التي فُتحت مظاريفها:", err);
+        listEl.innerHTML = '<div class="no-data-box" style="margin:0;">تعذّر تحميل القائمة</div>';
+    }
+}
+
+function tarhRenderEnvelopeOpened() {
+    var listEl = document.getElementById("tarhEnvelopeOpenedList");
+    if (!listEl) return;
+
+    if (!tarhEnvelopeOpenedCache || !tarhEnvelopeOpenedCache.length) {
+        listEl.innerHTML = '<div class="no-data-box" style="margin:0;">لا توجد فرص فُتحت مظاريفها بهذا النطاق</div>';
+        return;
+    }
+
+    listEl.innerHTML = '<div class="tarh-opp-list" style="max-height:280px;">' +
+        tarhEnvelopeOpenedCache.map(function (r) {
+            return '<div class="tarh-opp-item" style="cursor:default;">' +
+                '<span class="tarh-opp-item-text">' +
+                    '<span class="tarh-opp-item-number">' + tarhEscape(r.opportunityNumber || "—") + '</span>' +
+                    (r.opportunityName ? ' — ' + tarhEscape(r.opportunityName) : '') +
+                    '<br><small>' + tarhEscape(r.generalDepartment || "—") + (r.subPortfolio ? ' · ' + tarhEscape(r.subPortfolio) : '') + '</small>' +
+                '</span>' +
+                '<span style="flex-shrink:0; font-size:.78rem; font-weight:700; color:var(--muted); padding-inline-start:10px;">' +
+                    (tarhFormatDate(r.envelopeOpeningDate) || "—") +
+                '</span>' +
+            '</div>';
+        }).join("") +
+    '</div>';
+}
+
+function tarhInitEnvelopeOpened() {
+    var tabsWrap = document.getElementById("tarhEnvelopeOpenedTabs");
+    if (!tabsWrap || !window.TARH_ENVELOPE_OPENED_URL) return;
+
+    tabsWrap.querySelectorAll(".rp-toggle-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            tabsWrap.querySelectorAll(".rp-toggle-btn").forEach(function (b) { b.classList.remove("active"); });
+            btn.classList.add("active");
+            tarhLoadEnvelopeOpened(btn.getAttribute("data-range"));
+        });
+    });
+
+    tarhLoadEnvelopeOpened("week");
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     if (!window.TARH_DATA_URL) return;
 
     tarhLoad();
     tarhInitUpload();
     tarhInitExport();
+    tarhInitEnvelopeOpened();
 
     window.addEventListener("resize", function () {
         tarhCharts.forEach(function (c) { try { c.resize(); } catch (e) {} });

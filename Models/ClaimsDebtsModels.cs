@@ -110,6 +110,109 @@ namespace ExcelDashboard.Models
 
         public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
     }
+    //جدول المديونيات لكل البنود
+         public class DebtforallRecord
+    {
+        public int Id { get; set; }
+
+        [MaxLength(50)]
+        public string? Scope { get; set; } // الأمانة/بلدى
+
+        [MaxLength(150)]
+        public string? Entity { get; set; } // الجهة
+
+        [MaxLength(150)]
+        public string? Classification { get; set; } // تصنيف البند
+
+        [MaxLength(250)]
+        public string? Category { get; set; } // البند
+
+        [MaxLength(50)]
+        public string? ItemNumber { get; set; } // رقم البند
+
+        [MaxLength(50)]
+        public string? PaymentStatus { get; set; } // حالة السداد
+
+        [MaxLength(100)]
+        public string? ItemType { get; set; } // نوع البند
+
+        public decimal? Value { get; set; } // القيمة
+
+        public DateTime? CreatedDate { get; set; } // تاريخ الإنشاء
+        public DateTime? PaymentDate { get; set; } // تاريخ الدفع
+
+        [MaxLength(250)]
+        public string? CustomerName { get; set; } // إسم العميل
+
+        [MaxLength(100)]
+        public string? InvestorNumber { get; set; } // رقم المستثمر
+
+        [MaxLength(250)]
+        public string? InvestorName { get; set; } // إسم المستثمر
+
+        [MaxLength(100)]
+        public string? ContractNumber { get; set; } // رقم العقد - مفتاح الربط مع المطالبات
+
+        public DateTime? ContractDate { get; set; } // تاريخ العقد
+
+        [MaxLength(100)]
+        public string? InvoiceNumber { get; set; } // رقم الفاتوره
+
+        [MaxLength(500)]
+        public string? InvoiceDescription { get; set; } // وصف الفاتوره
+
+        [MaxLength(100)]
+        public string? RulingNumber { get; set; } // رقم الحكم
+
+        [MaxLength(100)]
+        public string? ExecutionNumber { get; set; } // رقم التنفيذ
+
+        [MaxLength(100)]
+        public string? PaymentEntryNumber { get; set; } // رقم إيفاء
+
+        [MaxLength(100)]
+        public string? BatchStatusAr { get; set; } // BATCH_STATUS_AR
+
+        [MaxLength(100)]
+        public string? BatchStatusEn { get; set; } // BATCH_STATUS_EN
+
+        public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     /// <summary>
     /// مطالبة تنفيذية واحدة - مستوردة من ملف "تقرير التنفيذ القضائي" ("لوحة المطالبات
@@ -225,6 +328,9 @@ namespace ExcelDashboard.Models
     {
         public int Id { get; set; }
 
+        [MaxLength(250)]
+        public string? InvestorName { get; set; } // اسم المستثمر (إن وُجد بملف الطرح)
+
         [MaxLength(100)]
         public string? OpportunityNumber { get; set; } // رقم الفرصة
 
@@ -333,5 +439,128 @@ namespace ExcelDashboard.Models
         public DateTime? SigningDate { get; set; }
 
         public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+        
+        
     }
+
+    /// <summary>
+    /// سجل "عقد استثماري" واحد بصفحة "جميع العقود الاستثمارية" - مستورد من ملف "تقرير عقود"
+    /// (66 عمودًا بالملف الخام، منها هذي الحقول المستخدَمة فعليًا بالصفحة). إعادة الرفع تستبدل
+    /// كل العقود القديمة بالكامل (بلا تراكم).
+    /// </summary>
+    public class InvestmentContractRecord
+    {
+        public int Id { get; set; }
+
+        [MaxLength(150)]
+        public string? Amanah { get; set; } // الأمانة
+
+        [MaxLength(150)]
+        public string? Baladiyah { get; set; } // البلدية
+
+        [MaxLength(100)]
+        public string? OpportunityNumber { get; set; } // رقم الفرصة
+
+        [MaxLength(400)]
+        public string? OpportunityName { get; set; } // اسم الفرصة
+
+        [MaxLength(250)]
+        public string? InvestorName { get; set; } // اسم المستثمر
+
+        [MaxLength(100)]
+        public string? ContractNumber { get; set; } // رقم العقد
+
+        [MaxLength(100)]
+        public string? ContractType { get; set; } // نوع العقد
+
+        [MaxLength(150)]
+        public string? ContractStatus { get; set; } // حالة العقد
+
+        public int? ContractDurationDays { get; set; } // مدة العقد (أيام)
+
+        public decimal? AnnualValue { get; set; } // القيمة السنوية للعقد
+        public decimal? AnnualValueWithTax { get; set; } // القيمة السنوية للعقد شاملة الضريبة
+
+        [MaxLength(5)]
+        public string? HasAnnualIncrease { get; set; } // هل يوجد زيادة سنوية (Y/N)
+
+        public DateTime? ContractStartDate { get; set; } // تاريخ بداية العقد
+        public DateTime? ContractEndDate { get; set; } // تاريخ نهاية العقد
+
+        [MaxLength(50)]
+        public string? ContractValidityStatus { get; set; } // حالة سريان العقد
+
+        public int? TotalPaymentsCount { get; set; } // عدد الدفعات الكلي
+
+        public int? DuePaymentsCount { get; set; } // عدد الدفعات المستحقة
+        public decimal? DuePaymentsValue { get; set; } // قيمة الدفعات المستحقة
+
+        public int? DuePaidCount { get; set; } // عدد الدفعات المستحقة المدفوعة
+        public decimal? DuePaidValue { get; set; } // قيمة الدفعات المستحقة المدفوعة
+
+        public int? DueUnpaidCount { get; set; } // عدد الدفعات المستحقة غير المدفوعة
+        public decimal? DueUnpaidValue { get; set; } // قيمة الدفعات المستحقة غير المدفوعة
+
+        public int? RemainingNotDueCount { get; set; } // عدد الدفعات المتبقية غير المستحقة
+        public decimal? RemainingNotDueValue { get; set; } // قيمة الدفعات المتبقية غير المستحقة
+
+        public int? StalledCount { get; set; } // المدفوعات المتعثرة (عدد)
+        public decimal? StalledValue { get; set; } // قيمة المدفوعات المتعثرة
+
+        public int? SentToExecutionCount { get; set; } // عدد الدفعات المرسلة إلى تنفيذ
+        public decimal? SentToExecutionValue { get; set; } // قيمة الدفعات المرسلة إلى تنفيذ
+
+        [MaxLength(250)]
+        public string? GeneralDepartment { get; set; } // الإدارة العامة
+
+        [MaxLength(250)]
+        public string? Portfolio { get; set; } // المحفظة
+
+        public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// نشاط استثماري واحد - مستوردة من ورقة "الانشطة " بملف "الأنشطة الاستثمارية" (رأس الأعمدة
+    /// بالصف 4 لا الصف 1، تُقرأ مباشرة عبر ClosedXML بدل IExcelDashboardService.AnalyzeFile).
+    /// إعادة رفع الملف تستبدل كل السجلات القديمة بالكامل.
+    /// </summary>
+    public class InvestmentActivityRecord
+    {
+        public int Id { get; set; }
+
+        [MaxLength(100)]
+        public string? OpportunityNumber { get; set; } // رقم الفرصة
+
+        [MaxLength(500)]
+        public string? OpportunityName { get; set; } // اسم الفرصة
+
+        [MaxLength(100)]
+        public string? ContractNumber { get; set; } // رقم العقد (إلزامي)
+
+        public DateTime? ContractDate { get; set; } // تاريخ العقد
+        public int? ContractYear { get; set; } // سنة العقد
+        public decimal? AnnualRent { get; set; } // الأجرة السنوية
+
+        [MaxLength(250)]
+        public string? Activity { get; set; } // الأنشطة
+
+        [MaxLength(250)]
+        public string? Sector { get; set; } // القطاعات
+
+        [MaxLength(150)]
+        public string? Region { get; set; } // المنطقة
+
+        [MaxLength(100)]
+        public string? ContractType { get; set; } // نوع العقد
+
+        public decimal? X { get; set; } // X الإحداثي
+        public decimal? Y { get; set; } // Y الإحداثي
+
+        public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+    }
+
+
+
 }
+
+

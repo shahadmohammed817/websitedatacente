@@ -35,9 +35,12 @@
             <partial name="_PageNavSidebar" />
         </div>
 
-        <a class="sidebar-upload-btn" href="@Url.Action("Upload", "Admin")">
-            @Icons.Svg("upload", "btn-svg") <span>رفع ملف Excel</span>
-        </a>
+        @if (string.IsNullOrEmpty(Context.Session.GetEmployeeDepartment()))
+        {
+            <a class="sidebar-upload-btn" href="@Url.Action("Upload", "Admin")">
+                @Icons.Svg("upload", "btn-svg") <span>رفع ملف Excel</span>
+            </a>
+        }
     </aside>
 
     <section class="dashboard-content">

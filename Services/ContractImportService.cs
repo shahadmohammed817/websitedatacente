@@ -119,6 +119,9 @@ namespace ExcelDashboard.Services
             var colStatus = Col("الحالة");
             var colOppNumber = Col("رقم الفرصة");
             var colOppName = Col("اسم الفرصة");
+            var colInvestor = Col("اسم المستثمر");
+            if (colInvestor == 0) colInvestor = Col("إسم المستثمر");
+            if (colInvestor == 0) colInvestor = Col("المستثمر");
             var colContractNumber = Col("رقم العقد");
             var colContractDate = Col("تاريخ العقد");
             var colContractYear = Col("سنة العقد");
@@ -199,6 +202,7 @@ namespace ExcelDashboard.Services
                 {
                     OpportunityNumber = NormalizeText(oppNumber),
                     OpportunityName = colOppName > 0 ? NormalizeText(row.Cell(colOppName).GetString()) : null,
+                    InvestorName = colInvestor > 0 ? NormalizeText(row.Cell(colInvestor).GetString()) : null,
                     Status = NormalizeStatus(row.Cell(colStatus).GetString()),
                     ContractNumber = NormalizeText(contractNumber),
                     ContractDate = contractDate,
@@ -220,4 +224,5 @@ namespace ExcelDashboard.Services
             return result;
         }
     }
+    
 }

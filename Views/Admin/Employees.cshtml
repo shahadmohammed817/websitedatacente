@@ -1,0 +1,124 @@
+@model List<ExcelDashboard.Models.AppUser>
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "إدارة الموظفين";
+    ViewData["FullWidth"] = "0";
+}
+
+<div class="nav-bar-row">
+    <a href="@Url.Action("Upload", "Admin")" class="back-btn">
+        @Icons.Svg("back", "btn-svg") <span>رجوع</span>
+    </a>
+    <div class="breadcrumb-bar">
+        <a href="@Url.Action("Index", "Home")">الرئيسية</a>
+        <span>/</span>
+        <a href="@Url.Action("Upload", "Admin")">رفع ملف Excel</a>
+        <span>/</span>
+        <span>إدارة الموظفين</span>
+    </div>
+</div>
+
+<div class="page-title">إدارة الموظفين (الرقم الوظيفي ← الإدارة العامة)</div>
+<div class="page-subtitle">كل موظف يدخل برقمه الوظيفي فقط (بلا كلمة مرور) ويُوجَّه تلقائيًا لنفس صفحات النظام مفلترة على إدارته المحددة هنا. اترك "الإدارة" بلا اختيار ليرى الموظف كل الإدارات (كالمدير).</div>
+
+@if (TempData["EmployeeError"] != null)
+{
+    <div id="uploadAlert" class="danger" style="display:block; margin-bottom:18px;">@TempData["EmployeeError"]</div>
+}
+@if (TempData["EmployeeSuccess"] != null)
+{
+    <div id="uploadAlert" class="success" style="display:block; margin-bottom:18px;">@TempData["EmployeeSuccess"]</div>
+}
+
+<div class="upload-card" style="margin-bottom:28px;">
+    <div style="font-weight:800; color:var(--brand-dark); margin-bottom:16px;">إضافة موظف جديد</div>
+    <form method="post" action="@Url.Action("EmployeeCreate", "Admin")">
+        @Html.AntiForgeryToken()
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap:0 16px;">
+            <div>
+                <label class="form-label-ar">الرقم الوظيفي</label>
+                <input type="text" name="employeeNumber" class="form-control-ar" required />
+            </div>
+            <div>
+                <label class="form-label-ar">الاسم</label>
+                <input type="text" name="fullName" class="form-control-ar" required />
+            </div>
+            <div>
+                <label class="form-label-ar">الإدارة العامة</label>
+                <select name="generalDepartment" class="form-control-ar">
+                    <option value="">كل الإدارات (بلا قيد)</option>
+                    @foreach (var dept in (string[])ViewBag.Departments)
+                    {
+                        <option value="@dept">@dept</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="form-label-ar">الدور</label>
+                <select name="role" class="form-control-ar">
+                    <option value="@((int)ExcelDashboard.Models.UserRole.Viewer)">مستخدم عادي</option>
+                    <option value="@((int)ExcelDashboard.Models.UserRole.Admin)">مدير (يدير الموظفين + يرى الكل)</option>
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn-brand" style="width:auto; padding-inline:28px;">إضافة الموظف</button>
+    </form>
+</div>
+
+<div class="contract-table-wrap">
+    <table class="contract-table">
+        <thead>
+            <tr>
+                <th>الرقم الوظيفي</th>
+                <th>الاسم</th>
+                <th>الإدارة العامة</th>
+                <th>الدور</th>
+                <th>الحالة</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in Model)
+            {
+                var formId = $"editForm{user.Id}";
+                <tr>
+                    <td>@user.EmployeeNumber</td>
+                    <td><input form="@formId" type="text" name="fullName" value="@user.FullName" class="form-control-ar" style="margin-bottom:0; min-width:140px;" required /></td>
+                    <td>
+                        <select form="@formId" name="generalDepartment" class="form-control-ar" style="margin-bottom:0; min-width:220px;">
+                            <option value="" selected="@(string.IsNullOrWhiteSpace(user.GeneralDepartment))">كل الإدارات (بلا قيد)</option>
+                            @foreach (var dept in (string[])ViewBag.Departments)
+                            {
+                                <option value="@dept" selected="@(user.GeneralDepartment == dept)">@dept</option>
+                            }
+                        </select>
+                    </td>
+                    <td>
+                        <select form="@formId" name="role" class="form-control-ar" style="margin-bottom:0; min-width:110px;">
+                            <option value="@((int)ExcelDashboard.Models.UserRole.Viewer)" selected="@(user.Role == ExcelDashboard.Models.UserRole.Viewer)">مستخدم عادي</option>
+                            <option value="@((int)ExcelDashboard.Models.UserRole.Admin)" selected="@(user.Role == ExcelDashboard.Models.UserRole.Admin)">مدير</option>
+                        </select>
+                    </td>
+                    <td>
+                        <label style="display:flex; align-items:center; gap:6px; font-size:.85rem; font-weight:600; cursor:pointer;">
+                            <input form="@formId" type="checkbox" name="isActive" value="true" checked="@user.IsActive" /> فعّال
+                        </label>
+                    </td>
+                    <td style="white-space:nowrap; display:flex; gap:8px;">
+                        <form id="@formId" method="post" action="@Url.Action("EmployeeEdit", "Admin")" style="display:inline;">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@user.Id" />
+                            <button type="submit" class="btn-sm-outline">حفظ</button>
+                        </form>
+                        <form method="post" action="@Url.Action("EmployeeDelete", "Admin")" style="display:inline;"
+                              onsubmit="return confirm('تأكيد حذف الموظف @user.FullName؟');">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@user.Id" />
+                            <button type="submit" class="btn-sm-danger">حذف</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

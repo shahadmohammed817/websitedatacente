@@ -9,24 +9,66 @@ namespace ExcelDashboard.Controllers
     /// صفحتا "المطالبات والمديونيات" و"متابعة الأداء": مصدرهما الوحيد ملف Excel يُرفع من زر
     /// مخصص أعلى الصفحتين. لا يوجد تسجيل دخول حالياً - متاحتان مباشرة كبقية صفحات النظام.
     /// </summary>
-    public class ClaimsController : Controller
+    public class ClaimsController : AppControllerBase
     {
         private readonly IContractImportService _contractImport;
         private readonly IAnalyticsService _analyticsService;
         private readonly IContractPeriodImportService _contractPeriodImport;
         private readonly IContractPeriodAnalyticsService _contractPeriodAnalytics;
+        private readonly IDebtforallImportService _debtforallImport;
+        private readonly IDebtforallAnalyticsService _debtforallAnalytics;
 
         public ClaimsController(
             IContractImportService contractImport,
             IAnalyticsService analyticsService,
             IContractPeriodImportService contractPeriodImport,
-            IContractPeriodAnalyticsService contractPeriodAnalytics)
+            IContractPeriodAnalyticsService contractPeriodAnalytics,
+            IDebtforallImportService debtforallImport,
+            IDebtforallAnalyticsService debtforallAnalytics)
         {
             _contractImport = contractImport;
             _analyticsService = analyticsService;
             _contractPeriodImport = contractPeriodImport;
             _contractPeriodAnalytics = contractPeriodAnalytics;
+            _debtforallImport = debtforallImport;
+            _debtforallAnalytics = debtforallAnalytics;
         }
+
+        // صفحة المديونيات لكل البنود
+        [HttpGet("Claims/DebtforAll")]
+        public IActionResult DebtforAll()
+        {
+            return View();
+        }
+
+        [HttpGet("Claims/DebtforAll/Data")]
+        public async Task<IActionResult> DebtforAllData(int? year, int? quarter, int? month, int? hijriYear)
+        {
+            var data = await _debtforallAnalytics.GetDataAsync(year, quarter, month, hijriYear);
+            return Json(data);
+        }
+
+        [HttpPost("Claims/DebtforAll/Upload")]
+        [RequestSizeLimit(100_000_000)]
+        public async Task<IActionResult> DebtforAllUpload(IFormFile debtforallFile)
+        {
+            if (debtforallFile == null || debtforallFile.Length == 0)
+                return Json(new { success = false, message = "يرجى اختيار ملف صالح." });
+
+            using var stream = debtforallFile.OpenReadStream();
+            var result = await _debtforallImport.ImportAsync(stream);
+
+            return Json(new { success = result.Success, message = result.Message, rowsImported = result.RowsImported });
+        }
+
+
+
+
+
+
+
+
+
 
         /// <summary>صفحة "الطرح" (رغم اسم المسار "Followup" التاريخي)</summary>
         [HttpGet("Claims/Followup")]
@@ -45,7 +87,9 @@ namespace ExcelDashboard.Controllers
         [HttpGet("Claims/GracePeriodExpiring/Data")]
         public async Task<IActionResult> GracePeriodExpiringData(string? department, string? portfolio, string? contractType, string? contractStatus)
         {
+            department = ScopedDepartment(department);
             var data = await _contractPeriodAnalytics.GetDataAsync(department, portfolio, contractType, contractStatus);
+            if (IsDepartmentRestricted) data.DepartmentOptions = new List<string> { department! };
             return Json(data);
         }
 
@@ -53,15 +97,17 @@ namespace ExcelDashboard.Controllers
         [HttpGet("Claims/GracePeriodExpiring/ContractEndingList")]
         public async Task<IActionResult> GracePeriodContractEndingList(bool isRed, string? department, string? portfolio, string? contractType, string? contractStatus)
         {
+            department = ScopedDepartment(department);
             var rows = await _contractPeriodAnalytics.GetContractEndingListAsync(isRed, department, portfolio, contractType, contractStatus);
             return Json(rows);
         }
 
-        /// <summary>قائمة العقود لدرج تفاصيل قوس "العقود التي تنتهي فترة سماحها خلال 2026" عند الضغط على لون (أحمر/أخضر)</summary>
+        /// <summary>قائمة العقود لدرج تفاصيل قوس "العقود التي تنتهي فترة سماحها خلال 2026" عند الضغط على لون (أحمر/أصفر/أخضر)</summary>
         [HttpGet("Claims/GracePeriodExpiring/PrepEndingList")]
-        public async Task<IActionResult> GracePeriodPrepEndingList(bool isRed, string? department, string? portfolio, string? contractType, string? contractStatus)
+        public async Task<IActionResult> GracePeriodPrepEndingList(string zone, string? department, string? portfolio, string? contractType, string? contractStatus)
         {
-            var rows = await _contractPeriodAnalytics.GetPrepEndingListAsync(isRed, department, portfolio, contractType, contractStatus);
+            department = ScopedDepartment(department);
+            var rows = await _contractPeriodAnalytics.GetPrepEndingListAsync(zone, department, portfolio, contractType, contractStatus);
             return Json(rows);
         }
 
@@ -119,7 +165,9 @@ namespace ExcelDashboard.Controllers
         [HttpGet("Claims/Followup/TarhData")]
         public async Task<IActionResult> TarhData(string? department, string? status, string? contractNumber, int? year, int? quarter)
         {
-            var data = await _analyticsService.GetTarhDataAsync(department, status, contractNumber, year, quarter);
+            department = ScopedDepartment(department);
+            var data = await _analyticsService.GetTarhDataAsync(department, status, contractNumber, year, quarter, forcedDepartment: HttpContext.Session.GetEmployeeDepartment());
+            if (IsDepartmentRestricted) data.DepartmentOptions = new List<string> { department! };
             return Json(data);
         }
 
@@ -142,6 +190,14 @@ namespace ExcelDashboard.Controllers
             return Json(timeline);
         }
 
+        /// <summary>قائمة الفرص التي فُتحت مظاريفها ضمن نطاق تاريخ معيّن (مثل "هذا الأسبوع") - قسم "الفرص التي فُتحت مظاريفها" بصفحة الطرح</summary>
+        [HttpGet("Claims/Followup/EnvelopeOpenedData")]
+        public async Task<IActionResult> TarhEnvelopeOpenedData(DateTime start, DateTime end)
+        {
+            var rows = await _analyticsService.GetTarhEnvelopeOpenedAsync(start, end, HttpContext.Session.GetEmployeeDepartment());
+            return Json(rows);
+        }
+
         /// <summary>
         /// صفوف تصدير صفحة "الطرح" بصيغة JSON (تُستخدَم لتعبئة جدول الطباعة المخفي قبل استدعاء
         /// window.print) - نفس تصفية TarhData بالضبط
@@ -149,6 +205,7 @@ namespace ExcelDashboard.Controllers
         [HttpGet("Claims/Followup/ExportData")]
         public async Task<IActionResult> TarhExportData(string? department, string? status, string? contractNumber, int? year, int? quarter)
         {
+            department = ScopedDepartment(department);
             var rows = await _analyticsService.GetTarhExportRowsAsync(department, status, contractNumber, year, quarter);
             return Json(rows);
         }
@@ -157,6 +214,7 @@ namespace ExcelDashboard.Controllers
         [HttpGet("Claims/Followup/ExportExcel")]
         public async Task<IActionResult> TarhExportExcel(string? department, string? status, string? contractNumber, int? year, int? quarter)
         {
+            department = ScopedDepartment(department);
             var rows = await _analyticsService.GetTarhExportRowsAsync(department, status, contractNumber, year, quarter);
 
             using var workbook = new XLWorkbook();

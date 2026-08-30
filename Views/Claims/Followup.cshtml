@@ -70,6 +70,24 @@
         <div id="tarhContent">
             <div class="tarh-kpi-grid print-hide" id="tarhKpiGrid"></div>
 
+            <div class="charts-grid-3 tarh-envelope-row print-hide" style="margin-bottom:18px;">
+                <div class="chart-card" id="tarhEnvelopeOpenedCard">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title"><i class="bi bi-envelope-open"></i> الفرص التي فُتحت مظاريفها</div>
+                            <div class="chart-subtitle" id="tarhEnvelopeOpenedSubtitle"></div>
+                        </div>
+                        <div class="rp-toggle-group" id="tarhEnvelopeOpenedTabs">
+                            <button type="button" class="rp-toggle-btn active" data-range="week">الأسبوع القادم</button>
+                            <button type="button" class="rp-toggle-btn" data-range="month">الشهر القادم</button>
+                            <button type="button" class="rp-toggle-btn" data-range="year2026">عام 2026</button>
+                        </div>
+                    </div>
+                    <div id="tarhEnvelopeOpenedList"></div>
+                </div>
+                <div id="tarhUpcomingTendersSlot"></div>
+            </div>
+
             <div class="charts-grid-3 print-hide" id="tarhChartsRow1" style="margin-bottom:18px;"></div>
             <div class="charts-grid-3 tarh-duration-row print-hide" id="tarhChartsRow3" style="margin-bottom:18px;"></div>
 
@@ -106,6 +124,7 @@
         window.TARH_EXPORT_EXCEL_URL = "@Url.Action("TarhExportExcel", "Claims")";
         window.TARH_OPPORTUNITY_OPTIONS_URL = "@Url.Action("TarhOpportunityOptions", "Claims")";
         window.TARH_OPPORTUNITY_TIMELINE_URL = "@Url.Action("TarhOpportunityTimeline", "Claims")";
+        window.TARH_ENVELOPE_OPENED_URL = "@Url.Action("TarhEnvelopeOpenedData", "Claims")";
     </script>
     <script src="~/js/tarh.js" asp-append-version="true"></script>
 }

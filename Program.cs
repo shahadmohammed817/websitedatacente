@@ -1,4 +1,5 @@
 using ExcelDashboard.Data;
+using ExcelDashboard.Helpers;
 using ExcelDashboard.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,11 +8,21 @@ var builder = WebApplication.CreateBuilder(args);
 // ===== MVC =====
 builder.Services.AddControllersWithViews();
 
+// ===== تعريف الموظف بالرقم الوظيفي (بلا كلمة مرور) - جلسة بسيطة تحدد إدارته العامة =====
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromHours(8);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+});
+builder.Services.AddHttpContextAccessor();
+
 // ===== قاعدة البيانات (SQLite عبر Entity Framework Core) =====
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// ===== الخدمات (Dependency Injection) =====
+// ===== الخدمات (Dependency Injection يعني الكونتول والسيرفر يحتاج قاعدة بيانات) =====
 // ملاحظة: تم إلغاء صفحة تسجيل الدخول بالكامل - يدخل المستخدم مباشرة للصفحة الرئيسية
 // ويرى كل بيانات الأمانة والبلدية دون أي قيود صلاحيات.
 builder.Services.AddScoped<IExcelDashboardService, ExcelDashboard.Services.ExcelDashboardService>();
@@ -28,7 +39,16 @@ builder.Services.AddScoped<IClaimsExecutionAnalyticsService, ClaimsExecutionAnal
 builder.Services.AddScoped<IContractImportService, ContractImportService>();
 builder.Services.AddScoped<IAmanahInvestmentDashboardService, AmanahInvestmentDashboardService>();
 builder.Services.AddScoped<IContractPeriodImportService, ContractPeriodImportService>();
+builder.Services.AddScoped<IDebtforallImportService, DebtforallImportService>();
+builder.Services.AddScoped<IDebtforallAnalyticsService, DebtforallAnalyticsService>();
 builder.Services.AddScoped<IContractPeriodAnalyticsService, ContractPeriodAnalyticsService>();
+builder.Services.AddScoped<IInvestmentContractImportService, InvestmentContractImportService>();
+builder.Services.AddScoped<IInvestmentContractAnalyticsService, InvestmentContractAnalyticsService>();
+builder.Services.AddScoped<IInvestmentActivityImportService, InvestmentActivityImportService>();
+builder.Services.AddScoped<IInvestmentActivityAnalyticsService, InvestmentActivityAnalyticsService>();
+builder.Services.AddScoped<IOpenRequestImportService, OpenRequestImportService>();
+builder.Services.AddScoped<IOpenRequestAnalyticsService, OpenRequestAnalyticsService>();
+builder.Services.AddScoped<IExecutiveSummaryService, ExecutiveSummaryService>();
 
 ExcelDashboard.Helpers.AppMode.ReadOnly = builder.Configuration.GetValue<bool>("READONLY_MODE");
 
@@ -67,6 +87,22 @@ using (var scope = app.Services.CreateScope())
     {
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "ALTER TABLE DashboardRecords ADD COLUMN Quarter TEXT NULL;";
+        cmd.ExecuteNonQuery();
+    }
+
+    // عمود "نوع البند" (ملزم/غير ملزم) - لدونات الصفحة الرئيسية الجديدة
+    if (!existingCols.Contains("ItemType"))
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "ALTER TABLE DashboardRecords ADD COLUMN ItemType TEXT NULL;";
+        cmd.ExecuteNonQuery();
+    }
+
+    // عمود "الأمانة/بلدى" الخام - لدونات "الأمانة/البلديات" الجديدة بالصفحة الرئيسية
+    if (!existingCols.Contains("AmanahBaladiRaw"))
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "ALTER TABLE DashboardRecords ADD COLUMN AmanahBaladiRaw TEXT NULL;";
         cmd.ExecuteNonQuery();
     }
 
@@ -301,7 +337,7 @@ using (var scope = app.Services.CreateScope())
         cmd.ExecuteNonQuery();
     }
 
-    // جدول "فواتير المديونيات" (صفحة "لوحة المديونيات") - قد لا يكون موجودًا في قاعدة بيانات قديمة
+        // جدول "فواتير المديونيات" (صفحة "لوحة المديونيات") - قد لا يكون موجودًا في قاعدة بيانات قديمة
     using (var cmd = conn.CreateCommand())
     {
         cmd.CommandText = @"CREATE TABLE IF NOT EXISTS DebtInvoiceRecords (
@@ -351,6 +387,84 @@ using (var scope = app.Services.CreateScope())
         cmd.CommandText = $"CREATE INDEX IF NOT EXISTS IX_DebtInvoiceRecords_{col} ON DebtInvoiceRecords ({col});";
         cmd.ExecuteNonQuery();
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    //صفحة المديونيات لكل البنود 
+        using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = @"CREATE TABLE IF NOT EXISTS DebtforallRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_DebtforallRecords PRIMARY KEY AUTOINCREMENT,
+            Scope TEXT NULL,
+            Entity TEXT NULL,
+            Classification TEXT NULL,
+            Category TEXT NULL,
+            ItemNumber TEXT NULL,
+            PaymentStatus TEXT NULL,
+            ItemType TEXT NULL,
+            Value REAL NULL,
+            CreatedDate TEXT NULL,
+            PaymentDate TEXT NULL,
+            CustomerName TEXT NULL,
+            InvestorNumber TEXT NULL,
+            InvestorName TEXT NULL,
+            ContractNumber TEXT NULL,
+            ContractDate TEXT NULL,
+            InvoiceNumber TEXT NULL,
+            InvoiceDescription TEXT NULL,
+            RulingNumber TEXT NULL,
+            ExecutionNumber TEXT NULL,
+            PaymentEntryNumber TEXT NULL,
+            BatchStatusAr TEXT NULL,
+            BatchStatusEn TEXT NULL,
+            ImportedAt TEXT NOT NULL
+        );";
+        cmd.ExecuteNonQuery();
+    }
+    foreach (var col in new[] { "ContractNumber", "InvoiceNumber","CreatedDate" })
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"CREATE INDEX IF NOT EXISTS IX_DebtforallRecords_{col} ON DebtforallRecords ({col});";
+        cmd.ExecuteNonQuery();
+    }
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // جدول "المطالبات التنفيذية" (صفحة "لوحة المطالبات التنفيذية") - قد لا يكون موجودًا في قاعدة بيانات قديمة
     using (var cmd = conn.CreateCommand())
@@ -441,6 +555,113 @@ using (var scope = app.Services.CreateScope())
         cmd.ExecuteNonQuery();
     }
 
+    // جدول "جميع العقود الاستثمارية" - قد لا يكون موجودًا في قاعدة بيانات قديمة
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = @"CREATE TABLE IF NOT EXISTS InvestmentContractRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_InvestmentContractRecords PRIMARY KEY AUTOINCREMENT,
+            Amanah TEXT NULL,
+            Baladiyah TEXT NULL,
+            OpportunityNumber TEXT NULL,
+            OpportunityName TEXT NULL,
+            ContractNumber TEXT NULL,
+            ContractType TEXT NULL,
+            ContractStatus TEXT NULL,
+            ContractDurationDays INTEGER NULL,
+            AnnualValue REAL NULL,
+            AnnualValueWithTax REAL NULL,
+            HasAnnualIncrease TEXT NULL,
+            ContractStartDate TEXT NULL,
+            ContractEndDate TEXT NULL,
+            ContractValidityStatus TEXT NULL,
+            TotalPaymentsCount INTEGER NULL,
+            DuePaymentsCount INTEGER NULL,
+            DuePaymentsValue REAL NULL,
+            DuePaidCount INTEGER NULL,
+            DuePaidValue REAL NULL,
+            DueUnpaidCount INTEGER NULL,
+            DueUnpaidValue REAL NULL,
+            RemainingNotDueCount INTEGER NULL,
+            RemainingNotDueValue REAL NULL,
+            StalledCount INTEGER NULL,
+            StalledValue REAL NULL,
+            SentToExecutionCount INTEGER NULL,
+            SentToExecutionValue REAL NULL,
+            GeneralDepartment TEXT NULL,
+            Portfolio TEXT NULL,
+            ImportedAt TEXT NOT NULL
+        );";
+        cmd.ExecuteNonQuery();
+    }
+    foreach (var col in new[] { "ContractNumber", "GeneralDepartment", "Portfolio", "ContractType", "ContractStatus" })
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"CREATE INDEX IF NOT EXISTS IX_InvestmentContractRecords_{col} ON InvestmentContractRecords ({col});";
+        cmd.ExecuteNonQuery();
+    }
+
+    // جدول "الأنشطة الاستثمارية" - قد لا يكون موجودًا في قاعدة بيانات قديمة
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = @"CREATE TABLE IF NOT EXISTS InvestmentActivityRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_InvestmentActivityRecords PRIMARY KEY AUTOINCREMENT,
+            OpportunityNumber TEXT NULL,
+            OpportunityName TEXT NULL,
+            ContractNumber TEXT NULL,
+            ContractDate TEXT NULL,
+            ContractYear INTEGER NULL,
+            AnnualRent REAL NULL,
+            Activity TEXT NULL,
+            Sector TEXT NULL,
+            Region TEXT NULL,
+            ContractType TEXT NULL,
+            X REAL NULL,
+            Y REAL NULL,
+            ImportedAt TEXT NOT NULL
+        );";
+        cmd.ExecuteNonQuery();
+    }
+    foreach (var col in new[] { "ContractNumber", "Region", "Sector", "Activity", "ContractYear" })
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"CREATE INDEX IF NOT EXISTS IX_InvestmentActivityRecords_{col} ON InvestmentActivityRecords ({col});";
+        cmd.ExecuteNonQuery();
+    }
+
+    // جدول "الطلبات المفتوحة" (صفحة "الطلبات المفتوحة") - قد لا يكون موجودًا في قاعدة بيانات قديمة
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = @"CREATE TABLE IF NOT EXISTS OpenRequestRecords (
+            Id INTEGER NOT NULL CONSTRAINT PK_OpenRequestRecords PRIMARY KEY AUTOINCREMENT,
+            Stage TEXT NULL,
+            RequestNumber TEXT NULL,
+            RequestCreatedDate TEXT NULL,
+            CommitteeNumber TEXT NULL,
+            Amanah TEXT NULL,
+            Baladiyah TEXT NULL,
+            DaysSinceCreation INTEGER NULL,
+            DaysSinceUpdate INTEGER NULL,
+            LastUpdateDate TEXT NULL,
+            Sla TEXT NULL,
+            BasketName TEXT NULL,
+            RequestStatus TEXT NULL,
+            OpportunityNumber TEXT NULL,
+            EmployeeId TEXT NULL,
+            EmployeeName TEXT NULL,
+            MobileNumber TEXT NULL,
+            EmployeeEmail TEXT NULL,
+            ContractValue REAL NULL,
+            ImportedAt TEXT NOT NULL
+        );";
+        cmd.ExecuteNonQuery();
+    }
+    foreach (var col in new[] { "Stage", "BasketName", "Baladiyah", "RequestStatus", "RequestNumber" })
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"CREATE INDEX IF NOT EXISTS IX_OpenRequestRecords_{col} ON OpenRequestRecords ({col});";
+        cmd.ExecuteNonQuery();
+    }
+
     // عمود "البند" (ItemCategory) أُضيف لاحقًا لجدولَي ClaimRecords/DebtRecords - نضيفه يدويًا
     // إن كانت القاعدة أُنشئت قبل إضافته (بنفس أسلوب ترقية DashboardRecords أعلاه)
     void AddColumnIfMissing(string table, string column, string sqlType)
@@ -477,11 +698,17 @@ using (var scope = app.Services.CreateScope())
     AddColumnIfMissing("DashboardRecords", "ContractStatus", "TEXT NULL");
     AddColumnIfMissing("DashboardRecords", "InvestorName", "TEXT NULL");
     AddColumnIfMissing("DashboardRecords", "PaymentNumber", "TEXT NULL");
+    AddColumnIfMissing("ContractRecords", "InvestorName", "TEXT NULL");
+    AddColumnIfMissing("InvestmentContractRecords", "InvestorName", "TEXT NULL");
     AddColumnIfMissing("Sections", "ItemNumbers", "TEXT NULL");
+    AddColumnIfMissing("OpenRequestRecords", "OpportunityName", "TEXT NULL");
     // TargetSource يميّز صفوف "مستهدف المالية" عن صفوف "مستهدف البلديات والإسكان" الآن أنه صار
     // بإمكان جدول واحد (FinanceItemTargets) يحمل كلا المصدرين من نفس ملف "المستهدف السنوي" -
     // DEFAULT 'Finance' يُصنّف الصفوف الموجودة مسبقًا (كلها كانت من مصدر المالية) تلقائيًا
     AddColumnIfMissing("FinanceItemTargets", "TargetSource", "TEXT NOT NULL DEFAULT 'Finance'");
+    // الإدارة العامة التي يتبعها الموظف - null/فارغ يعني بلا قيد (يرى كل الإدارات)، تُستخدم
+    // لفرض فلترة "الإدارة العامة" تلقائيًا عند تسجيل الدخول برقمه الوظيفي (Users وليس AppUsers هو الاسم الفعلي للجدول)
+    AddColumnIfMissing("Users", "GeneralDepartment", "TEXT NULL");
 
     // إعادة حساب "الربع"/"الشهر" لكل السجلات الموجودة مسبقًا بنفس منطق الاستيراد الجديد (تاريخ
     // الدفع للمحصّلة، تاريخ الإنشاء لغير المحصّلة) بدل قيمة "الربع" الخام القديمة من الملف، وتعبئة
@@ -550,6 +777,52 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+app.UseSession();
+
+// ===== بوابة تعريف الموظف: أي طلب بلا جلسة موظف (ما عدا صفحات تسجيل الدخول نفسها) يُعاد توجيهه
+// لصفحة إدخال الرقم الوظيفي. الملفات الثابتة (UseStaticFiles أعلاه) تمر قبل هذه البوابة فلا تتأثر.
+// وبعدها: موظف مقيّد بإدارة عامة واحدة (GeneralDepartment) لا يفتح إلا 5 صفحات محددة
+// (RestrictedEmployeeAccess.AllowedActions) - أي رابط مباشر لصفحة أخرى يُعاد توجيهه لأول صفحة
+// مسموحة، حتى لو كتب الرابط يدويًا (حماية على مستوى الخادم لا مجرد إخفاء روابط بالقائمة). =====
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path;
+    var isAccountPath = path.StartsWithSegments("/Account");
+
+    if (!isAccountPath && !context.Session.IsSignedIn())
+    {
+        var returnUrl = Uri.EscapeDataString(context.Request.Path + context.Request.QueryString);
+        context.Response.Redirect($"/Account/Login?returnUrl={returnUrl}");
+        return;
+    }
+
+    await next();
+});
+
+// موظف مقيّد بإدارة عامة واحدة (GeneralDepartment) لا يفتح إلا 5 صفحات محددة مسبقًا
+// (RestrictedEmployeeAccess.AllowedActions) - أي رابط مباشر لصفحة أخرى يُعاد توجيهه لأول صفحة
+// مسموحة، حتى لو كتب الرابط يدويًا (حماية على مستوى الخادم لا مجرد إخفاء روابط بالقائمة). تعمل
+// بعد UseRouting فالـ endpoint المطابَق متوفر بـ context.GetEndpoint() قبل تنفيذه فعليًا.
+app.Use(async (context, next) =>
+{
+    var isAccountPath = context.Request.Path.StartsWithSegments("/Account");
+    var department = isAccountPath ? null : context.Session.GetEmployeeDepartment();
+
+    if (!string.IsNullOrEmpty(department))
+    {
+        var endpoint = context.GetEndpoint();
+        var descriptor = endpoint?.Metadata.GetMetadata<Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor>();
+        var scope = context.GetRouteValue("scope")?.ToString();
+
+        if (descriptor == null || !RestrictedEmployeeAccess.IsAllowed(descriptor.ControllerName, descriptor.ActionName, scope))
+        {
+            context.Response.Redirect(RestrictedEmployeeAccess.FirstAllowedPath);
+            return;
+        }
+    }
+
+    await next();
+});
 
 app.MapControllerRoute(
     name: "default",

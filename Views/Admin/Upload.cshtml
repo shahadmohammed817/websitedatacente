@@ -32,6 +32,11 @@
         <div class="page-title">رفع ملف Excel وتحديث قاعدة البيانات</div>
         <div class="page-subtitle">زر رفع واحد فقط — بدون اختيار بند، يتم تحديد البند لكل صف تلقائيًا وتحديث كل اللوحات فور الاستيراد</div>
 
+        @if (Context.Session.IsAdmin())
+        {
+            <a href="@Url.Action("Employees", "Admin")" class="btn-sm-outline" style="display:inline-flex; margin-bottom:20px;">إدارة الموظفين (الرقم الوظيفي ← الإدارة العامة)</a>
+        }
+
         @if (AppMode.ReadOnly)
         {
             <div class="no-data-box">

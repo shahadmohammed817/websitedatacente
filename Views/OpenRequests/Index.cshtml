@@ -1,0 +1,78 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "الطلبات المفتوحة";
+    ViewData["FullWidth"] = "1";
+    ViewData["HasSidebar"] = "1";
+}
+
+<div class="dashboard-layout home-shell">
+    <aside class="sidebar-nav scope-nav">
+        <div class="sidebar-nav-title">
+            <span>لوحة التنقّل</span>
+            <button class="nav-close" id="navClose" type="button" aria-label="إغلاق القائمة"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="sidebar-scroll">
+            <partial name="_PageNavSidebar" />
+        </div>
+    </aside>
+
+    <section class="dashboard-content">
+        <div class="nav-bar-row">
+            <a href="@Url.Action("Index", "Home")" class="back-btn"
+               onclick="if(document.referrer && document.referrer.indexOf(location.origin)===0){history.back();return false;}">
+                @Icons.Svg("back", "btn-svg") <span>رجوع</span>
+            </a>
+            <div class="breadcrumb-bar">
+                <a href="@Url.Action("Index", "Home")">الرئيسية</a>
+                <span>/</span>
+                <span>الطلبات المفتوحة</span>
+            </div>
+        </div>
+
+        <div class="dash-header-row">
+            <div class="dash-header-info">
+                <div class="dash-icon-badge">@Icons.Svg("inbox", "")</div>
+                <div>
+                    <div class="page-title" style="margin-bottom:0;">الطلبات المفتوحة</div>
+                </div>
+            </div>
+            <div class="contract-actions read-only-hide" style="margin-bottom:0;">
+                <div class="tc-upload-wrap">
+                    <input type="file" id="orqUploadInput" accept=".xlsx" hidden />
+                    <button type="button" id="orqUploadBtn" class="tc-upload-btn">
+                        <i class="bi bi-upload"></i>
+                        <span>رفع ملف الطلبات المفتوحة</span>
+                    </button>
+                    <span id="orqUploadStatus" class="tc-upload-status"></span>
+                </div>
+            </div>
+        </div>
+
+        <div id="orqFilterBar" class="dash-filter-bar" style="margin-bottom:14px;"></div>
+
+        <div id="orqContent">
+            <div class="tarh-kpi-grid" id="orqKpiGrid"></div>
+
+            <div id="orqStageTimeline" style="margin-bottom:18px;"></div>
+            <div style="display:flex;gap:12px;align-items:stretch;flex-wrap:wrap;margin-bottom:18px;">
+                <div style="flex:1 1 auto;min-width:0;" id="orqOfficerChart"></div>
+                <div class="chart-card orq-year-box" id="orqYearBox" style="flex:0 0 360px;max-width:360px;"></div>
+            </div>
+            <div class="charts-grid-3" id="orqOverviewRow"></div>
+        </div>
+
+        <div class="no-data-box" id="orqNoDataBox" style="display:none;">
+            <span class="nd-icon">@Icons.Svg("inbox", "")</span>
+            لا توجد بيانات طلبات مفتوحة مستوردة بعد. اضغط "رفع ملف الطلبات المفتوحة" أعلى الصفحة للبدء.
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+    <script>
+        window.ORQ_DATA_URL = "@Url.Action("Data", "OpenRequests")";
+        window.ORQ_UPLOAD_URL = "@Url.Action("Upload", "OpenRequests")";
+    </script>
+    <script src="~/js/open-requests.js" asp-append-version="true"></script>
+}

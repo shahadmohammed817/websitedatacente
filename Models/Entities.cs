@@ -46,6 +46,14 @@ namespace ExcelDashboard.Models
         /// </summary>
         public ScopeType DefaultScope { get; set; } = ScopeType.All;
 
+        /// <summary>
+        /// الإدارة العامة التي يتبعها الموظف (إحدى القيم الثلاث بـ Helpers.GeneralDepartments.All) -
+        /// عند تسجيل الدخول برقمه الوظيفي تُفرض هذه القيمة على كل صفحات النظام التي تدعم الفلترة
+        /// بالإدارة العامة، بصرف النظر عمّا يختاره من واجهة الفلاتر. null/فارغ = بلا قيد (يرى كل الإدارات).
+        /// </summary>
+        [MaxLength(250)]
+        public string? GeneralDepartment { get; set; }
+
         public bool IsActive { get; set; } = true;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -131,6 +139,22 @@ namespace ExcelDashboard.Models
 
         [MaxLength(250)]
         public string? Category { get; set; } // الفئة / الصنف (عمود نصي رئيسي)
+
+        /// <summary>
+        /// نوع البند (عمود "نوع البند" بالملف، مثل "ملزم"/"غير ملزم") - عمود مستقل تمامًا عن
+        /// Category (عمود "البند" التفصيلي) رغم تشابه الاسم. يُستخدم بدونات "ملزم/غير ملزم"
+        /// بالصفحة الرئيسية فقط.
+        /// </summary>
+        [MaxLength(100)]
+        public string? ItemType { get; set; }
+
+        /// <summary>
+        /// نص عمود "الأمانة/بلدى" الخام كما هو بالملف لكل صف - عمود مستقل تمامًا عن عمود
+        /// "المنطقة" (المستخدَم لمطابقة نطاق البند وقت الاستيراد) رغم تشابه الغرض الظاهري.
+        /// يُستخدم حصريًا لدونات "الأمانة/البلديات" بالصفحة الرئيسية.
+        /// </summary>
+        [MaxLength(150)]
+        public string? AmanahBaladiRaw { get; set; }
 
         [MaxLength(150)]
         public string? Entity { get; set; } // الجهة (أمانة المدينة / بلدية الحناكية / بلدية العلا ...)
@@ -332,6 +356,70 @@ namespace ExcelDashboard.Models
         public decimal AnnualTarget { get; set; }
 
         public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// سجل طلب مفتوح واحد (صفحة "الطلبات المفتوحة") - كل صف كما هو بملف "الطلبات المفتوحة"
+    /// (مصدره لجنة فتح المظاريف/الاستثمار وما بعدها): مرحلة الطلب، حالته التفصيلية، السلة (الجهة/
+    /// المسؤول الماسك للطلب حاليًا)، وعدد الأيام منذ آخر تحديث (لتحديد الطلبات المتأخرة).
+    /// </summary>
+    public class OpenRequestRecord
+    {
+        public int Id { get; set; }
+
+        [MaxLength(250)]
+        public string? Stage { get; set; } // المرحلة
+
+        [MaxLength(100)]
+        public string? RequestNumber { get; set; } // رقم الطلب
+
+        public DateTime? RequestCreatedDate { get; set; } // تاريخ إنشاء الطلب
+
+        [MaxLength(100)]
+        public string? CommitteeNumber { get; set; } // رقم اللجنة
+
+        [MaxLength(150)]
+        public string? Amanah { get; set; } // الأمانة
+
+        [MaxLength(150)]
+        public string? Baladiyah { get; set; } // البلدية
+
+        public int? DaysSinceCreation { get; set; } // عدد الأيام من تاريخ الإنشاء
+
+        public int? DaysSinceUpdate { get; set; } // عدد الأيام من تاريخ التحديث
+
+        public DateTime? LastUpdateDate { get; set; } // تاريخ اخر التحديث
+
+        [MaxLength(20)]
+        public string? Sla { get; set; } // SLA
+
+        [MaxLength(150)]
+        public string? BasketName { get; set; } // أسم السلة - الجهة/المسؤول الماسك للطلب حاليًا
+
+        [MaxLength(300)]
+        public string? RequestStatus { get; set; } // حالة الطلب
+
+        [MaxLength(100)]
+        public string? OpportunityNumber { get; set; } // رقم الفرصة
+
+        [MaxLength(300)]
+        public string? OpportunityName { get; set; } // اسم الفرصة
+
+        [MaxLength(50)]
+        public string? EmployeeId { get; set; } // هوية الموظف
+
+        [MaxLength(150)]
+        public string? EmployeeName { get; set; } // اسم الموظف
+
+        [MaxLength(30)]
+        public string? MobileNumber { get; set; } // رقم الجوال
+
+        [MaxLength(150)]
+        public string? EmployeeEmail { get; set; } // إيميل الموظف
+
+        public decimal? ContractValue { get; set; } // قيمة العقد
+
+        public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
     }
 
     /// <summary>

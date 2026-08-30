@@ -12,7 +12,7 @@ namespace ExcelDashboard.Controllers
     /// <summary>
     /// لا يوجد تسجيل دخول حالياً - كل الصفحات متاحة مباشرة دون قيود صلاحيات.
     /// </summary>
-    public class DashboardController : Controller
+    public class DashboardController : AppControllerBase
     {
         private readonly AppDbContext _db;
         private readonly IPermissionService _permissions;
@@ -51,8 +51,10 @@ namespace ExcelDashboard.Controllers
         [HttpGet("Dashboard/AmanahInvestment/Data")]
         public async Task<IActionResult> AmanahInvestmentData(string? quarter, string? contract, string? sectionIds, string? deptGeneral, string? deptSub, string? investmentType)
         {
+            deptGeneral = ScopedDepartment(deptGeneral);
             var ids = ParseSectionIds(sectionIds);
             var data = await _amanahInvestment.GetDataAsync(quarter, contract, ids, deptGeneral, deptSub, investmentType);
+            if (IsDepartmentRestricted) data.DeptGeneralLabels = new List<string> { deptGeneral! };
             return Json(data);
         }
 
@@ -74,6 +76,7 @@ namespace ExcelDashboard.Controllers
         [HttpGet("Dashboard/AmanahInvestment/ExportData")]
         public async Task<IActionResult> AmanahInvestmentExportData(string? quarter, string? contract, string? sectionIds, string? deptGeneral, string? deptSub, string? investmentType)
         {
+            deptGeneral = ScopedDepartment(deptGeneral);
             var ids = ParseSectionIds(sectionIds);
             var rows = await _amanahInvestment.GetExportRowsAsync(quarter, contract, ids, deptGeneral, deptSub, investmentType);
             return Json(rows);
@@ -83,6 +86,7 @@ namespace ExcelDashboard.Controllers
         [HttpGet("Dashboard/AmanahInvestment/ExportExcel")]
         public async Task<IActionResult> AmanahInvestmentExportExcel(string? quarter, string? contract, string? sectionIds, string? deptGeneral, string? deptSub, string? investmentType)
         {
+            deptGeneral = ScopedDepartment(deptGeneral);
             var ids = ParseSectionIds(sectionIds);
             var rows = await _amanahInvestment.GetExportRowsAsync(quarter, contract, ids, deptGeneral, deptSub, investmentType);
 

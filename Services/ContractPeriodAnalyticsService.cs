@@ -18,12 +18,15 @@ namespace ExcelDashboard.Services
         public List<ContractStatusGroupRow> DeptStatusBreakdown { get; set; } = new();
         public List<ContractSubDeptStatusGroupRow> SubDeptStatusBreakdown { get; set; } = new();
 
-        // "العقود التي تنتهي فترة سماحها خلال 2026" - نهاية فترة التجهيز بسنة 2026 بالضبط = أحمر
-        // (عاجل)، كل الباقي (قبل أو بعد 2026) = أخضر، بلا تاريخ إطلاقًا = مستبعدة (لا يوجد فترة
-        // تجهيز للعقد)
+        // "العقود التي تنتهي فترة سماحها خلال 2026" - النطاق = العقود اللي "نهاية فترة التجهيز"
+        // وقعت بسنة 2026 بالضبط فقط، مصنّفة حسب عدد الأيام المنقضية منذ ذلك التاريخ: 90 يوم
+        // فأكثر = أحمر (حرجة)، من 31 إلى 89 يوم = أصفر (تحذير)، 30 يوم فأقل = أخضر (آمنة) -
+        // بطلب صريح من المستخدمة (كانت مبنية على سنة النهاية فقط بلا حساب أيام سابقًا)
         public int PrepEndingRedCount { get; set; }
+        public int PrepEndingYellowCount { get; set; }
         public int PrepEndingGreenCount { get; set; }
-        public int PrepEndingNullCount { get; set; }
+        /// <summary>نسبة الأحمر = PrepEndingRedCount ÷ إجمالي الثلاثة × 100</summary>
+        public decimal PrepEndingRedPercent { get; set; }
 
         // "العقود التي شارفت على الانتهاء" - نفس فكرة PrepEnding لكن على عمود "تاريخ نهاية العقد"
         // بدلاً من "نهاية فترة التجهيز" - أحمر=ينتهي بسنة 2026 بالضبط، أخضر=بعد 2026 - بطلب
@@ -55,6 +58,7 @@ namespace ExcelDashboard.Services
     {
         public string? ContractNumber { get; set; }
         public string? OpportunityName { get; set; }
+        public string? InvestorName { get; set; }
         public DateTime? ContractEndDate { get; set; }
         public DateTime? SigningDate { get; set; }
     }
@@ -82,9 +86,10 @@ namespace ExcelDashboard.Services
         /// تاريخ نهاية العقد بسنة 2026 بالضبط، false يعني بعد 2026 - بنفس فلاتر GetDataAsync</summary>
         Task<List<ContractEndingDetailRow>> GetContractEndingListAsync(bool isRed, string? department, string? portfolio, string? contractType, string? contractStatus);
 
-        /// <summary>قائمة العقود لدرج تفاصيل قوس "العقود التي تنتهي فترة سماحها خلال 2026" - isRed=true
-        /// يعني نهاية فترة التجهيز بسنة 2026 بالضبط، false يعني غير ذلك - بنفس فلاتر GetDataAsync</summary>
-        Task<List<ContractEndingDetailRow>> GetPrepEndingListAsync(bool isRed, string? department, string? portfolio, string? contractType, string? contractStatus);
+        /// <summary>قائمة العقود لدرج تفاصيل قوس "العقود التي تنتهي فترة سماحها خلال 2026" - zone
+        /// "red"=تجاوزت 90 يوم، "yellow"=من 31 إلى 89 يوم، "green"=30 يوم فأقل (دائمًا ضمن نطاق
+        /// نهاية فترة التجهيز بسنة 2026) - بنفس فلاتر GetDataAsync</summary>
+        Task<List<ContractEndingDetailRow>> GetPrepEndingListAsync(string zone, string? department, string? portfolio, string? contractType, string? contractStatus);
     }
 
     public class ContractPeriodAnalyticsService : IContractPeriodAnalyticsService
@@ -156,10 +161,17 @@ namespace ExcelDashboard.Services
                 .Select(g => new ContractSubDeptStatusGroupRow { DepartmentLabel = g.Key.Dept, PortfolioLabel = g.Key.Portfolio, Status = g.Key.Status, Count = g.Count() })
                 .ToList();
 
-            var withPrepEnd = filteredRows.Where(r => r.PrepPeriodEndDate.HasValue).ToList();
-            result.PrepEndingRedCount = withPrepEnd.Count(r => r.PrepPeriodEndDate!.Value.Year == RedYear);
-            result.PrepEndingGreenCount = withPrepEnd.Count(r => r.PrepPeriodEndDate!.Value.Year != RedYear);
-            result.PrepEndingNullCount = filteredRows.Count - withPrepEnd.Count;
+            var today = DateTime.UtcNow.Date;
+            var prepEnding2026 = filteredRows.Where(r => r.PrepPeriodEndDate.HasValue && r.PrepPeriodEndDate.Value.Year == RedYear).ToList();
+            result.PrepEndingRedCount = prepEnding2026.Count(r => (today - r.PrepPeriodEndDate!.Value.Date).TotalDays >= 90);
+            result.PrepEndingYellowCount = prepEnding2026.Count(r =>
+            {
+                var days = (today - r.PrepPeriodEndDate!.Value.Date).TotalDays;
+                return days >= 31 && days < 90;
+            });
+            result.PrepEndingGreenCount = prepEnding2026.Count(r => (today - r.PrepPeriodEndDate!.Value.Date).TotalDays <= 30);
+            result.PrepEndingRedPercent = prepEnding2026.Count > 0
+                ? Math.Round((decimal)result.PrepEndingRedCount / prepEnding2026.Count * 100, 1) : 0;
 
             // "العقود التي شارفت على الانتهاء" - نفس المنطق لكن على "تاريخ نهاية العقد"
             var withContractEnd = filteredRows.Where(r => r.ContractEndDate.HasValue).ToList();
@@ -185,7 +197,7 @@ namespace ExcelDashboard.Services
             var allRecords = await _db.ContractPeriodRecords.AsNoTracking().ToListAsync();
             var filteredRows = ApplyFilters(allRecords, department, portfolio, contractType, contractStatus);
 
-            return filteredRows
+            var result = filteredRows
                 .Where(r => r.ContractEndDate.HasValue && (isRed ? r.ContractEndDate.Value.Year == RedYear : r.ContractEndDate.Value.Year != RedYear))
                 .OrderBy(r => r.ContractEndDate)
                 .Select(r => new ContractEndingDetailRow
@@ -196,15 +208,23 @@ namespace ExcelDashboard.Services
                     SigningDate = r.SigningDate
                 })
                 .ToList();
+            await FillInvestorNamesAsync(result);
+            return result;
         }
 
-        public async Task<List<ContractEndingDetailRow>> GetPrepEndingListAsync(bool isRed, string? department, string? portfolio, string? contractType, string? contractStatus)
+        public async Task<List<ContractEndingDetailRow>> GetPrepEndingListAsync(string zone, string? department, string? portfolio, string? contractType, string? contractStatus)
         {
             var allRecords = await _db.ContractPeriodRecords.AsNoTracking().ToListAsync();
             var filteredRows = ApplyFilters(allRecords, department, portfolio, contractType, contractStatus);
+            var today = DateTime.UtcNow.Date;
 
-            return filteredRows
-                .Where(r => r.PrepPeriodEndDate.HasValue && (isRed ? r.PrepPeriodEndDate.Value.Year == RedYear : r.PrepPeriodEndDate.Value.Year != RedYear))
+            var result = filteredRows
+                .Where(r =>
+                {
+                    if (!r.PrepPeriodEndDate.HasValue || r.PrepPeriodEndDate.Value.Year != RedYear) return false;
+                    var days = (today - r.PrepPeriodEndDate.Value.Date).TotalDays;
+                    return zone == "red" ? days >= 90 : zone == "yellow" ? (days >= 31 && days < 90) : days <= 30;
+                })
                 .OrderBy(r => r.PrepPeriodEndDate)
                 .Select(r => new ContractEndingDetailRow
                 {
@@ -214,6 +234,23 @@ namespace ExcelDashboard.Services
                     SigningDate = r.SigningDate
                 })
                 .ToList();
+            await FillInvestorNamesAsync(result);
+            return result;
+        }
+
+        private async Task FillInvestorNamesAsync(List<ContractEndingDetailRow> rows)
+        {
+            var numbers = rows.Where(r => !string.IsNullOrWhiteSpace(r.ContractNumber)).Select(r => r.ContractNumber!).Distinct().ToList();
+            if (numbers.Count == 0) return;
+            // الربط مع DebtInvoiceRecords يتم عبر ContractIdRaw ("CONTRACT_ID") لا ContractNumber
+            // ("رقم العقد") - عمود "رقم العقد" بملف المديونيات أرقام داخلية صغيرة لا تطابق صيغة
+            // "CN-XXXXX" المستخدمة هنا (راجع تعليق DebtsAnalyticsService.FindByContractNumberAsync)
+            var investors = await _db.DebtInvoiceRecords.AsNoTracking()
+                .Where(r => r.ContractIdRaw != null && numbers.Contains(r.ContractIdRaw) && !string.IsNullOrWhiteSpace(r.InvestorName))
+                .GroupBy(r => r.ContractIdRaw!)
+                .ToDictionaryAsync(g => g.Key, g => g.Select(r => r.InvestorName!).First());
+            foreach (var row in rows)
+                if (row.ContractNumber != null && investors.TryGetValue(row.ContractNumber, out var investorName)) row.InvestorName = investorName;
         }
     }
 }

@@ -8,6 +8,8 @@
     var currentAction = ViewContext.RouteData.Values["action"] as string ?? "";
     var currentScope = (ViewContext.RouteData.Values["scope"] as string) ?? Context.Request.Query["scope"].ToString();
     var currentQueryMode = Context.Request.Query["mode"].ToString();
+    var restrictedDept = Context.Session.GetEmployeeDepartment();
+    var isRestricted = !string.IsNullOrEmpty(restrictedDept);
 
     string LinkClass(string ctrl, string action, string scope = "")
     {
@@ -19,14 +21,27 @@
 
     var links = new[]
     {
-        new { Url = Url.Action("Index", "Home"), Icon = "report", Label = "الرئيسية", Cls = LinkClass("Home", "Index") },
-        new { Url = Url.Action("Scope", "Dashboard", new { scope = "Amanah" }), Icon = "building", Label = "الإدارات العامة", Cls = LinkClass("Dashboard", "Scope", "Amanah") },
-        new { Url = Url.Action("Scope", "Dashboard", new { scope = "Baladiyah" }), Icon = "city", Label = "بيانات البلديات", Cls = LinkClass("Dashboard", "Scope", "Baladiyah") },
-        new { Url = Url.Action("Index", "ClaimsExecution"), Icon = "alert", Label = "المديونيات والمطالبات", Cls = LinkClass("ClaimsExecution", "Index") },
-        new { Url = Url.Action("Followup", "Claims"), Icon = "trending", Label = "الطرح", Cls = LinkClass("Claims", "Followup") },
-        new { Url = Url.Action("GracePeriodExpiring", "Claims"), Icon = "contract", Label = "العقود التي تنتهي فترة سماحها خلال 3 أشهر", Cls = LinkClass("Claims", "GracePeriodExpiring") },
-        new { Url = Url.Action("TargetsComparisonBaladiyah", "Dashboard"), Icon = "city", Label = "مستهدفات البلديات", Cls = LinkClass("Dashboard", "TargetsComparisonBaladiyah") },
+        new { Controller = "Home", Action = "Index", Scope = (string?)null, Url = Url.Action("Index", "Home"), Icon = "report", Label = "الرئيسية", Cls = LinkClass("Home", "Index") },
+        new { Controller = "ExecutiveSummary", Action = "Index", Scope = (string?)null, Url = Url.Action("Index", "ExecutiveSummary"), Icon = "report", Label = "الملخص التنفيذي", Cls = LinkClass("ExecutiveSummary", "Index") },
+        new { Controller = "Dashboard", Action = "Scope", Scope = (string?)"Amanah", Url = Url.Action("Scope", "Dashboard", new { scope = "Amanah" }), Icon = "building", Label = "الإدارات العامة", Cls = LinkClass("Dashboard", "Scope", "Amanah") },
+        new { Controller = "Dashboard", Action = "Scope", Scope = (string?)"Baladiyah", Url = Url.Action("Scope", "Dashboard", new { scope = "Baladiyah" }), Icon = "city", Label = "بيانات البلديات", Cls = LinkClass("Dashboard", "Scope", "Baladiyah") },
+        new { Controller = "ClaimsExecution", Action = "Index", Scope = (string?)null, Url = Url.Action("Index", "ClaimsExecution"), Icon = "alert", Label = "المديونيات والمطالبات", Cls = LinkClass("ClaimsExecution", "Index") },
+        new { Controller = "OpenRequests", Action = "Index", Scope = (string?)null, Url = Url.Action("Index", "OpenRequests"), Icon = "inbox", Label = "الطلبات المفتوحة", Cls = LinkClass("OpenRequests", "Index") },
+        new { Controller = "Claims", Action = "Followup", Scope = (string?)null, Url = Url.Action("Followup", "Claims"), Icon = "trending", Label = "الطرح", Cls = LinkClass("Claims", "Followup") },
+        new { Controller = "InvestmentContracts", Action = "Index", Scope = (string?)"Amanah", Url = Url.Action("Index", "InvestmentContracts", new { scope = "Amanah" }), Icon = "contract", Label = "جميع العقود الاستثمارية", Cls = LinkClass("InvestmentContracts", "Index", "Amanah") },
+        new { Controller = "InvestmentContracts", Action = "Index", Scope = (string?)"Baladiyah", Url = Url.Action("Index", "InvestmentContracts", new { scope = "Baladiyah" }), Icon = "contract", Label = "جميع العقود الاستثمارية - بلدية", Cls = LinkClass("InvestmentContracts", "Index", "Baladiyah") },
+        new { Controller = "InvestmentActivities", Action = "Index", Scope = (string?)null, Url = Url.Action("Index", "InvestmentActivities"), Icon = "globe", Label = "الأنشطة الاستثمارية", Cls = LinkClass("InvestmentActivities", "Index") },
+        new { Controller = "Claims", Action = "GracePeriodExpiring", Scope = (string?)null, Url = Url.Action("GracePeriodExpiring", "Claims"), Icon = "contract", Label = "العقود التي تنتهي فترة سماحها خلال 3 أشهر", Cls = LinkClass("Claims", "GracePeriodExpiring") },
+        new { Controller = "Dashboard", Action = "TargetsComparisonBaladiyah", Scope = (string?)null, Url = Url.Action("TargetsComparisonBaladiyah", "Dashboard"), Icon = "city", Label = "مستهدفات البلديات", Cls = LinkClass("Dashboard", "TargetsComparisonBaladiyah") },
+        new { Controller = "Claims", Action = "DebtforAll", Scope = (string?)null, Url = Url.Action("DebtforAll", "Claims"), Icon = "alert", Label = "المديونيات لجميع البنود", Cls = LinkClass("Claims", "DebtforAll") },
     };
+
+    // موظف مقيّد بإدارة عامة: يشوف فقط الصفحات المسموحة له (RestrictedEmployeeAccess) - نفس
+    // القائمة المستخدمة ببوابة الوصول بـ Program.cs، وبدون "الرئيسية" ولا "طباعة العقود" لأنهما
+    // خارج الصفحات الخمس المسموحة أصلاً.
+    var visibleLinks = isRestricted
+        ? links.Where(l => l.Controller != "Home" && RestrictedEmployeeAccess.IsAllowed(l.Controller, l.Action, l.Scope)).ToList()
+        : links.ToList();
 
     bool onContractPage = string.Equals(currentController, "Contract", StringComparison.OrdinalIgnoreCase)
                         && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase);
@@ -37,34 +52,44 @@
 <div class="sidebar-group">
     <div class="sidebar-nav-title">الصفحات</div>
 
-    @{ var firstHalf = links.Take(3); }
-    @foreach (var link in firstHalf)
+    @if (isRestricted)
     {
-        <a href="@link.Url" class="@link.Cls">
-            <span>@Icons.Svg(link.Icon, "side-svg") @link.Label</span>
-        </a>
+        @foreach (var link in visibleLinks)
+        {
+            <a href="@link.Url" class="@link.Cls">
+                <span>@Icons.Svg(link.Icon, "side-svg") @link.Label</span>
+            </a>
+        }
     }
-
-    <details class="sidebar-dropdown" open="@onContractPage">
-        <summary class="sidebar-link page-nav-link@(onContractPage ? " active" : "")">
-            <span>@Icons.Svg("contract", "side-svg") طباعة العقود</span>
-            <i class="bi bi-chevron-down sidebar-dropdown-caret"></i>
-        </summary>
-        <div class="sidebar-dropdown-body">
-            <a href="@Url.Action("Index", "Contract")" class="sidebar-link page-nav-link sidebar-item-depth-1@(contractSingleActive ? " active" : "")">
-                <span>الاستعلام عن عقد وطباعته</span>
-            </a>
-            <a href="@Url.Action("Index", "Contract", new { mode = "all" })" class="sidebar-link page-nav-link sidebar-item-depth-1@(contractAllActive ? " active" : "")">
-                <span>طباعة جميع العقود</span>
-            </a>
-        </div>
-    </details>
-
-    @{ var secondHalf = links.Skip(3); }
-    @foreach (var link in secondHalf)
+    else
     {
-        <a href="@link.Url" class="@link.Cls">
-            <span>@Icons.Svg(link.Icon, "side-svg") @link.Label</span>
-        </a>
+        @foreach (var link in visibleLinks.Take(3))
+        {
+            <a href="@link.Url" class="@link.Cls">
+                <span>@Icons.Svg(link.Icon, "side-svg") @link.Label</span>
+            </a>
+        }
+
+        <details class="sidebar-dropdown" open="@onContractPage">
+            <summary class="sidebar-link page-nav-link@(onContractPage ? " active" : "")">
+                <span>@Icons.Svg("contract", "side-svg") طباعة العقود</span>
+                <i class="bi bi-chevron-down sidebar-dropdown-caret"></i>
+            </summary>
+            <div class="sidebar-dropdown-body">
+                <a href="@Url.Action("Index", "Contract")" class="sidebar-link page-nav-link sidebar-item-depth-1@(contractSingleActive ? " active" : "")">
+                    <span>الاستعلام عن عقد وطباعته</span>
+                </a>
+                <a href="@Url.Action("Index", "Contract", new { mode = "all" })" class="sidebar-link page-nav-link sidebar-item-depth-1@(contractAllActive ? " active" : "")">
+                    <span>طباعة جميع العقود</span>
+                </a>
+            </div>
+        </details>
+
+        @foreach (var link in visibleLinks.Skip(3))
+        {
+            <a href="@link.Url" class="@link.Cls">
+                <span>@Icons.Svg(link.Icon, "side-svg") @link.Label</span>
+            </a>
+        }
     }
 </div>

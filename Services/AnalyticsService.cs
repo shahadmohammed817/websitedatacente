@@ -138,6 +138,19 @@ namespace ExcelDashboard.Services
         /// البلديات" (مرتّبة تنازليًا حسب الإجمالي)
         /// </summary>
         public List<EntityRevenueRow> EntityRevenueBreakdown { get; set; } = new();
+
+        /// <summary>
+        /// توزيع السجلات حسب عمود "نوع البند" الخام (Category) - "ملزم"/"غير ملزم" -
+        /// قيمة إجمالية وعدد سجلات لكل نوع. تُملأ حصريًا من GetOverviewDataAsync (الصفحة
+        /// الرئيسية) لدونات "ملزم/غير ملزم" الجديدة.
+        /// </summary>
+        public List<NameValueCountRow> ItemTypeBreakdown { get; set; } = new();
+
+        /// <summary>
+        /// توزيع السجلات حسب النطاق (الأمانة/البلديات) - قيمة إجمالية وعدد سجلات لكل نطاق.
+        /// تُملأ حصريًا من GetOverviewDataAsync (الصفحة الرئيسية) لدونات "الأمانة/البلديات" الجديدة.
+        /// </summary>
+        public List<NameValueCountRow> ScopeBreakdown { get; set; } = new();
     }
 
     /// <summary>صف بلدية واحدة: إجمالي إيراداتها + نسبة تحصيلها — لرسم "أعلى البلديات إيرادًا"</summary>
@@ -146,6 +159,14 @@ namespace ExcelDashboard.Services
         public string Entity { get; set; } = string.Empty;
         public decimal TotalValue { get; set; }
         public decimal CollectionRatePercent { get; set; }
+    }
+
+    /// <summary>صف واحد {اسم، قيمة إجمالية، عدد} - لدونات "ملزم/غير ملزم" و"الأمانة/البلديات" بالصفحة الرئيسية</summary>
+    public class NameValueCountRow
+    {
+        public string Name { get; set; } = string.Empty;
+        public decimal Value { get; set; }
+        public int Count { get; set; }
     }
 
     /// <summary>
@@ -376,12 +397,45 @@ namespace ExcelDashboard.Services
         public List<decimal> BaladiyahQuarterlyCollected { get; set; } = new();
     }
 
+    /// <summary>بيانات قسم "تحقيق المستهدف" بصفحة "الملخص التنفيذي" لبند/مصدر مستهدف/سنة محدَّدة</summary>
+    public class TargetAchievementData
+    {
+        public bool HasData { get; set; }
+        public decimal Target { get; set; }
+        public decimal Collected { get; set; }
+        public decimal Invoiced { get; set; }
+        public decimal AchievementPercent { get; set; }
+    }
+
+    /// <summary>قوائم فلاتر قسم "تحقيق المستهدف" بصفحة "الملخص التنفيذي"</summary>
+    public class TargetFilterOptionsData
+    {
+        public List<string> MainItems { get; set; } = new();
+        public Dictionary<string, List<string>> SubItemsByMainItem { get; set; } = new();
+        public List<int> Years { get; set; } = new();
+    }
+
     /// <summary>صف نوع عقد واحد (كرت) بصفحة "الطرح" - عدد وقيمة العقود من هذا النوع</summary>
     public class TarhTypeSummaryRow
     {
         public string TypeLabel { get; set; } = string.Empty;
         public int Count { get; set; }
         public decimal TotalValue { get; set; }
+    }
+
+    /// <summary>صف نوع عقد واحد - إجمالي عدد/قيمة هذا النوع بكل البيانات (بلا فلتر سنة/حالة) مقابل
+    /// عدد/قيمة ما أُبرم منه فعليًا بسنة 2026 (TarhTypeSummaryRow). يُستخدم بصفحة "الملخص
+    /// التنفيذي" الجديدة: دونات "عدد الفرص حسب النوع" + بار "القيمة ونسبة الإبرام حسب النوع" -
+    /// منفصل عن TarhTypeSummaryRow حتى لا يغيّر معنى الحقول المستخدَمة أصلًا بصفحة "الطرح" نفسها.
+    /// نفس الأربعة أنواع الظاهرة بصفحة "الطرح" بالضبط (يُبنى من TypeSummary نفسها).</summary>
+    public class TarhTypeTenderedRow
+    {
+        public string TypeLabel { get; set; } = string.Empty;
+        public int TenderedCount { get; set; }
+        public decimal TenderedValue { get; set; }
+        public int FinalizedCount { get; set; }
+        public decimal FinalizedValue { get; set; }
+        public decimal FinalizedPercent { get; set; }
     }
 
     /// <summary>صف سنة واحدة بصفحة "الطرح" - عدد العقود المبرومة بهذه السنة</summary>
@@ -446,33 +500,54 @@ namespace ExcelDashboard.Services
         public DateTime? ContractDate { get; set; }
     }
 
-    /// <summary>صف حالة واحدة ضمن "الحالات قيد الإجراء" الثلاث بقوس "تحت إجراءات الترسية"</summary>
-    public class TarhStatusCountRow
-    {
-        public string Status { get; set; } = string.Empty;
-        public int Count { get; set; }
-    }
-
     /// <summary>
-    /// "تحت إجراءات الترسية" بصفحة "الطرح": عدد الفرص بإحدى الحالات الثلاث قيد الإجراء (لم
-    /// تُبرَم ولم تُلغَ بعد)، ونسبتها من إجمالي الفرص التي فُتحت مظاريفها (=طُرحت)
+    /// "تحت إجراءات الترسية" بصفحة "الطرح": من بين الفرص بإحدى الحالات الثلاث قيد الإجراء
+    /// (لم تُبرَم ولم تُلغَ بعد) التي فُتحت مظاريفها بسنة 2026 بالضبط - كم منها تجاوزت 30 يوم
+    /// منذ فتح المظاريف (أحمر) وكم ضمن 30 يوم (أخضر)، ونسبة المتجاوزة من إجمالي الفرص التي
+    /// فُتحت مظاريفها بـ2026 (بصرف النظر عن حالتها)
     /// </summary>
     public class TarhDurationStatus
     {
-        /// <summary>إجمالي الفرص التي فُتحت مظاريفها (المرجع/المقام بحساب النسبة)</summary>
+        /// <summary>إجمالي الفرص التي فُتحت مظاريفها بسنة 2026 (المرجع/المقام بحساب النسبة)</summary>
         public int TotalCount { get; set; }
-        /// <summary>عدد الفرص بإحدى الحالات الثلاث قيد الإجراء (البسط بحساب النسبة)</summary>
-        public int PendingCount { get; set; }
-        public decimal PendingPercent { get; set; }
-        /// <summary>توزيع العدد على كل حالة من الحالات الثلاث على حدة، تنازليًا</summary>
-        public List<TarhStatusCountRow> StatusBreakdown { get; set; } = new();
+        /// <summary>عدد الفرص (بالحالات الثلاث) اللي تجاوزت 30 يوم منذ فتح المظاريف - أحمر</summary>
+        public int ExceededCount { get; set; }
+        /// <summary>عدد الفرص (بالحالات الثلاث) اللي ضمن 30 يوم منذ فتح المظاريف - أخضر</summary>
+        public int WithinCount { get; set; }
+        /// <summary>نسبة المتجاوزة 30 يوم = ExceededCount ÷ TotalCount × 100</summary>
+        public decimal ExceededPercent { get; set; }
+        /// <summary>عدد الفرص لكل حالة من الحالات الثلاث قيد الإجراء (TarhPendingStatuses) - يُعرَض كقائمة أسماء+أعداد أسفل القوس</summary>
+        public List<NameCountRow> StatusBreakdown { get; set; } = new();
+    }
+
+    /// <summary>3 قطاعات دونات "الفرص المطروحة القادمة" بصفحة الطرح - الأسبوع القادم، الشهر القادم (كلاهما من تاريخ اليوم فصاعدًا)، وإجمالي سنة 2026 بأكملها</summary>
+    public class TarhUpcomingTenders
+    {
+        public int NextWeekCount { get; set; }
+        public int NextMonthCount { get; set; }
+        public int Year2026Count { get; set; }
     }
 
     /// <summary>خيار واحد بقائمة اختيار الفرصة (زر "تتبع الفرصة")</summary>
+    /// <summary>صف فرصة واحدة بقائمة "الفرص التي فُتحت مظاريفها" (فلتر نطاق تاريخ بصفحة الطرح)</summary>
+    public class TarhEnvelopeOpenedRow
+    {
+        public string? OpportunityNumber { get; set; }
+        public string? OpportunityName { get; set; }
+        public string? InvestorName { get; set; }
+        public string? GeneralDepartment { get; set; }
+        public string? SubPortfolio { get; set; }
+        public string? Status { get; set; }
+        public DateTime? EnvelopeOpeningDate { get; set; }
+        public decimal? Value { get; set; }
+    }
+
     public class TarhOpportunityOption
     {
         public string OpportunityNumber { get; set; } = string.Empty;
         public string? OpportunityName { get; set; }
+        public string? InvestorName { get; set; }
+        public string? ContractNumber { get; set; }
 
         /// <summary>"ضمن 30 يوم" أو "تجاوزت 30 يوم" أو null إن تعذّر حساب المدة - لتلوين نتائج البحث فورًا بلا طلب إضافي</summary>
         public string? DurationStatus { get; set; }
@@ -484,6 +559,7 @@ namespace ExcelDashboard.Services
         public bool Found { get; set; }
         public string? OpportunityNumber { get; set; }
         public string? OpportunityName { get; set; }
+        public string? InvestorName { get; set; }
         public string? ContractNumber { get; set; }
         public string? Status { get; set; }
 
@@ -522,8 +598,20 @@ namespace ExcelDashboard.Services
         /// <summary>إجمالي عدد الفرص (رقم الفرصة) ضمن التصفية الحالية</summary>
         public int TotalOpportunities { get; set; }
 
+        /// <summary>إجمالي قيمة الفرص التي طُرحت (فُتحت مظاريفها) بسنة 2026 بالضبط - بغض النظر
+        /// عن حالتها (نفس نطاق DeptSummary/TypeTenderedSummary)، يغذّي كرت "إجمالي القيمة"
+        /// بصفحة "الملخص التنفيذي"</summary>
+        public decimal TotalOpportunitiesValue { get; set; }
+
+        /// <summary>عدد وقيمة الفرص التي طُرحت (فُتحت مظاريفها) بسنة 2026 بالضبط، حسب نوع العقد،
+        /// مقابل عدد/قيمة ما أُبرم منها فعليًا - يغذّي دونات وبار "الملخص التنفيذي" الجديدة</summary>
+        public List<TarhTypeTenderedRow> TypeTenderedSummary { get; set; } = new();
+
         /// <summary>عدد وقيمة الفرص التي طُرحت (فُتحت مظاريفها) بسنة 2026 بالضبط، حسب الإدارة العامة (رسم 1)</summary>
         public List<TarhDeptSummaryRow> DeptSummary { get; set; } = new();
+
+        /// <summary>عدد وقيمة العقود المبرومة 2026 بالضبط حسب الإدارة العامة - يغذّي صف 1 بصفحة "الملخص التنفيذي"</summary>
+        public List<TarhDeptSummaryRow> FinalizedByDepartment { get; set; } = new();
 
         /// <summary>نفس فكرة DeptSummary حسب المحفظة الفرعية، مع اسم الإدارة العامة لكل صف (رسم 2)</summary>
         public List<TarhFinalizedByPortfolioRow> FinalizedByPortfolio { get; set; } = new();
@@ -540,6 +628,9 @@ namespace ExcelDashboard.Services
         /// <summary>"تحت إجراءات الترسية" - عدد الفرص قيد الإجراء ونسبتها من إجمالي فتح المظاريف</summary>
         public TarhDurationStatus DurationStatus { get; set; } = new();
 
+        /// <summary>دونات "الفرص المطروحة القادمة" - أسبوع/شهر قادم + إجمالي 2026 (رسم 1، بجانب رسم الإدارة العامة)</summary>
+        public TarhUpcomingTenders UpcomingTenders { get; set; } = new();
+
         public List<string> DepartmentOptions { get; set; } = new();
         public List<string> StatusOptions { get; set; } = new();
         public List<int> YearOptions { get; set; } = new();
@@ -555,8 +646,24 @@ namespace ExcelDashboard.Services
         /// <summary>بيانات صفحة "مستهدفات وزارة المالية" (أمانة/بلديات، محصّل مقابل مستهدف سنوي لكل بند)</summary>
         Task<FinanceTargetsPageData> GetFinanceTargetsPageDataAsync();
 
-        /// <summary>بيانات صفحة "الطرح" (كروت أنواع العقود، القيمة حسب المحفظة الفرعية، الاتجاه الزمني، فتح المظاريف حسب الحالة)</summary>
-        Task<TarhPageData> GetTarhDataAsync(string? department, string? status, string? contractNumber, int? year, int? quarter);
+        /// <summary>
+        /// قسم "تحقيق المستهدف" بصفحة "الملخص التنفيذي": المستهدف (من FinanceItemTarget) مقابل
+        /// المحصّل/المفوتر الفعلي (من DashboardRecords)، مُفلترة بالنطاق (أمانة/بلديات/الكل)
+        /// والبند الرئيسي/الفرعي/مصدر المستهدف (مالية/بلديات وإسكان/الكل) والسنة معًا
+        /// </summary>
+        Task<TargetAchievementData> GetTargetAchievementAsync(string? scope, string? mainItem, string? subItem, string? targetSource, int? year);
+
+        /// <summary>قوائم فلاتر قسم "تحقيق المستهدف": البنود الرئيسية وبنودها الفرعية (من جدول Sections، حسب النطاق) والسنوات المتاحة (من DashboardRecords)</summary>
+        Task<TargetFilterOptionsData> GetTargetFilterOptionsAsync(string? scope);
+
+        /// <summary>
+        /// بيانات صفحة "الطرح" (كروت أنواع العقود، القيمة حسب المحفظة الفرعية، الاتجاه الزمني، فتح المظاريف حسب الحالة).
+        /// forcedDepartment: لموظف مقيّد بإدارة عامة واحدة فقط - يقيّد رسمَي "الفرص المطروحة حسب
+        /// الإدارة العامة/الفرعية" أيضًا (هذان الرسمان عمدًا لا يتأثران بـ department العادي، لأن
+        /// الغرض منهما مقارنة الإدارات ببعضها لمستخدم غير مقيّد) بدل إظهار كل الإدارات لموظف
+        /// مفروض يشوف إدارته فقط. null لمستخدم غير مقيّد (يبقى السلوك القديم كما هو).
+        /// </summary>
+        Task<TarhPageData> GetTarhDataAsync(string? department, string? status, string? contractNumber, int? year, int? quarter, string? forcedDepartment = null);
 
         /// <summary>صفوف تصدير صفحة "الطرح" (Excel/PDF) - بنفس تصفية GetTarhDataAsync</summary>
         Task<List<TarhExportRow>> GetTarhExportRowsAsync(string? department, string? status, string? contractNumber, int? year, int? quarter);
@@ -566,6 +673,13 @@ namespace ExcelDashboard.Services
 
         /// <summary>رحلة فرصة واحدة (فتح المظاريف ← الترسية ← توقيع العقد) برقم الفرصة</summary>
         Task<TarhOpportunityTimeline> GetTarhOpportunityTimelineAsync(string opportunityNumber);
+
+        /// <summary>
+        /// قائمة الفرص التي فُتحت مظاريفها ضمن نطاق تاريخ معيّن (مثل "هذا الأسبوع") - مرتّبة
+        /// بالأحدث أولاً. forcedDepartment: لموظف مقيّد بإدارة عامة واحدة يقيّد القائمة على
+        /// إدارته فقط، null لمستخدم غير مقيّد (يشوف كل الإدارات).
+        /// </summary>
+        Task<List<TarhEnvelopeOpenedRow>> GetTarhEnvelopeOpenedAsync(DateTime start, DateTime end, string? forcedDepartment = null);
 
         Task<SectionDashboardData> GetSectionDataAsync(int sectionId, bool includeSubSections = true, string? quarter = null, string? contractNumber = null, int? month = null);
 
@@ -650,6 +764,8 @@ namespace ExcelDashboard.Services
                 RecordDate = r.RecordDate,
                 CreatedDate = r.CreatedDate,
                 Category = r.Category,
+                ItemType = r.ItemType,
+                AmanahBaladiRaw = r.AmanahBaladiRaw,
                 Classification = r.Classification,
                 Quarter = r.Quarter,
                 Entity = r.Entity
@@ -938,12 +1054,50 @@ namespace ExcelDashboard.Services
                 s => s.Id,
                 s => s.Scope == ScopeType.Amanah ? "الأمانة" : "البلديات");
 
-            return await BuildResult(
+            var result = await BuildResult(
                 records,
                 rootNameMap,
                 entityGroupOverride: scopeGroupMap,
                 entityChartTitle: "المحصّل ربع السنوي: الأمانة مقابل البلديات",
                 entityChartBadge: "اضغط لعرض تفاصيل النطاق");
+
+            if (!result.HasData) return result;
+
+            // دونات "ملزم/غير ملزم": عمود "نوع البند" الخام (ItemType) لكل سجل - قيمة وعدد لكل نوع
+            result.ItemTypeBreakdown = records
+                .Where(r => !string.IsNullOrWhiteSpace(r.ItemType))
+                .GroupBy(r => r.ItemType!.Trim())
+                .Select(g => new NameValueCountRow { Name = g.Key, Value = g.Sum(x => x.TotalValue ?? 0), Count = g.Count() })
+                .OrderByDescending(x => x.Value)
+                .ToList();
+
+            // دونات "الأمانة/البلديات": تُصنَّف من عمود "الأمانة/بلدى" الخام لكل صف مباشرةً (عمود
+            // مستقل تمامًا عن "المنطقة" المستخدَم لمطابقة نطاق البند)، ولو كان العمود فارغًا بذلك
+            // الصف نرجع لنطاق البند المطابَق (scopeGroupMap) كاحتياطي حتى لا يسقط أي سجل من الدونات
+            static string? ClassifyAmanahBaladiRaw(string? raw)
+            {
+                if (string.IsNullOrWhiteSpace(raw)) return null;
+                var norm = raw.Trim();
+                var lower = norm.ToLowerInvariant();
+                // القيم قد تكون عربية ("أمانة"/"بلدية") أو مُحوّلة ("AMANA"/"BALADY")
+                if (norm.Contains("بلد") || lower.Contains("balad") || lower.Contains("baldy")) return "البلديات";
+                if (norm.Contains("امانه") || norm.Contains("أمانة") || norm.Contains("امانة") || lower.Contains("aman")) return "الأمانة";
+                return null;
+            }
+
+            result.ScopeBreakdown = records
+                .Select(r => new
+                {
+                    Label = ClassifyAmanahBaladiRaw(r.AmanahBaladiRaw) ?? (scopeGroupMap.TryGetValue(r.SectionId, out var sc) ? sc : null),
+                    Record = r
+                })
+                .Where(x => x.Label != null)
+                .GroupBy(x => x.Label!)
+                .Select(g => new NameValueCountRow { Name = g.Key, Value = g.Sum(x => x.Record.TotalValue ?? 0), Count = g.Count() })
+                .OrderByDescending(x => x.Value)
+                .ToList();
+
+            return result;
         }
 
         /// <summary>
@@ -1138,18 +1292,6 @@ namespace ExcelDashboard.Services
             // القديم (حسب "البند الرئيسي" فقط) كان يعطي "استثمار" و"تأجير مؤقت" نفس المستهدف
             // المُجمَّع للاثنين معًا (خطأ اكتشفته المستخدمة: مستهدف "استثمار" وحده للأمانة من
             // ملف المالية = 307,717,614 فقط، وليس 313 مليون المجمّعة مع تأجير مؤقت أيضًا)
-            const string InvestmentMainItemFinance = "إيرادات استثمار العقارات البلدية";
-            const string TemporaryLeaseSubItem = "التأجير المؤقت";
-
-            // يُستخدَم لكلا مصدرَي المستهدف السنوي (المالية + البلديات والإسكان) لأن كلاهما
-            // من نفس صفوف نفس ملف "المستهدف السنوي" بنفس تسميات البند الرئيسي بالضبط
-            string? ResolveFinanceClassification(string mainItem, string? subItem)
-            {
-                if (mainItem == InvestmentMainItemFinance)
-                    return subItem != null && subItem.Trim() == TemporaryLeaseSubItem ? "تأجير مؤقت" : "استثمار";
-                return FinanceMainItemToClassifications.TryGetValue(mainItem, out var arr) && arr.Length > 0 ? arr[0] : null;
-            }
-
             var allFinanceItemTargets = await _db.FinanceItemTargets.AsNoTracking().ToListAsync();
 
             var financeTargetByScope = allFinanceItemTargets
@@ -1734,6 +1876,23 @@ namespace ExcelDashboard.Services
             return result;
         }
 
+        // بند "إيرادات استثمار العقارات البلدية" فقط ينقسم فعليًا إلى تصنيفين مختلفين بكلا
+        // ملفَي المستهدف (المالية بعمود "البند الفرعي"، البلديات بعمود "البند"): "العقود
+        // الاستثمارية"/"التأجير المباشر" = تصنيف "استثمار"، و"التأجير المؤقت" = تصنيف "تأجير
+        // مؤقت" - بقية البنود الرئيسية تطابق تصنيفًا واحدًا فقط. مستخدَمة بكل من
+        // GetOverviewDataAsync وGetTargetAchievementAsync (صفحة "الملخص التنفيذي" الجديدة)
+        private const string InvestmentMainItemFinance = "إيرادات استثمار العقارات البلدية";
+        private const string TemporaryLeaseSubItem = "التأجير المؤقت";
+
+        // يُستخدَم لكلا مصدرَي المستهدف السنوي (المالية + البلديات والإسكان) لأن كلاهما من نفس
+        // صفوف نفس ملف "المستهدف السنوي" بنفس تسميات البند الرئيسي بالضبط
+        private static string? ResolveFinanceClassification(string mainItem, string? subItem)
+        {
+            if (mainItem == InvestmentMainItemFinance)
+                return subItem != null && subItem.Trim() == TemporaryLeaseSubItem ? "تأجير مؤقت" : "استثمار";
+            return FinanceMainItemToClassifications.TryGetValue(mainItem, out var arr) && arr.Length > 0 ? arr[0] : null;
+        }
+
         // خريطة "البند الرئيسي" كما بملف "مستهدف المالية" ← قيم "تصنيف البند" الموازية له
         // بـ Book112.xlsx (نفس فكرة الخريطة أعلاه لصفحة البلديات، لكن بنص مختلف قليلاً لأن
         // ملف مستهدف المالية يستخدم صياغة عربية مختلفة عن ملف المستهدف الشهري للبلديات)
@@ -1834,6 +1993,109 @@ namespace ExcelDashboard.Services
             return result;
         }
 
+        /// <summary>
+        /// قسم "تحقيق المستهدف" بصفحة "الملخص التنفيذي": البند الرئيسي/الفرعي هنا هما نفس عمودي
+        /// "تصنيف البند"/"البند" (Classification/Category) المستخدَمين بفلتر الصفحة الرئيسية
+        /// (البند الرئيسي = "استثمار" مثلاً، الفرعي = "ريع الأراضي" تحته) - لا علاقة لهما بأسماء
+        /// FinanceItemTarget.MainItem/SubItem الأطول (تُستخدَم داخليًا فقط عبر ResolveFinanceClassification
+        /// لتحديد أي صفوف FinanceItemTarget تخص "تصنيف البند" المختار). المحصّل/المفوتر من
+        /// DashboardRecords تُفلتَر مباشرة بـ Classification/Category (+ Entity حسب النطاق
+        /// المختار عبر IsAmanah). قوائم البند الرئيسي/الفرعي بالفلتر مصدرها جدول Sections نفسه
+        /// المستخدَم بشجرة فلتر الصفحة الرئيسية (البند الرئيسي = قسم بلا أب، الفرعي = أبناؤه
+        /// المباشرون) - Section.NameAr يطابق نص Classification/Category بالضبط.
+        /// </summary>
+        public async Task<TargetAchievementData> GetTargetAchievementAsync(string? scope, string? mainItem, string? subItem, string? targetSource, int? year)
+        {
+            var records = await _db.DashboardRecords.AsNoTracking()
+                .Where(r => r.Classification != null && r.Classification != "")
+                .Select(r => new { r.Entity, r.Classification, r.Category, r.CollectedValue, r.TotalValue, r.RecordDate, r.CreatedDate })
+                .ToListAsync();
+
+            var matching = records.Where(r =>
+                (string.IsNullOrWhiteSpace(scope) || scope == "All" || (scope == "Amanah" ? IsAmanah(r.Entity) : !IsAmanah(r.Entity))) &&
+                (string.IsNullOrWhiteSpace(mainItem) || string.Equals(r.Classification!.Trim(), mainItem.Trim(), StringComparison.Ordinal)) &&
+                (string.IsNullOrWhiteSpace(subItem) || string.Equals((r.Category ?? "").Trim(), subItem.Trim(), StringComparison.Ordinal))
+            ).ToList();
+
+            var result = new TargetAchievementData { HasData = matching.Count > 0 };
+
+            var allTargetRows = await _db.FinanceItemTargets.AsNoTracking().ToListAsync();
+            var targetRows = allTargetRows.Where(t =>
+                (string.IsNullOrWhiteSpace(scope) || scope == "All" || t.Scope == scope) &&
+                (string.IsNullOrWhiteSpace(targetSource) || targetSource == "All" || t.TargetSource == targetSource) &&
+                (string.IsNullOrWhiteSpace(mainItem) || ResolveFinanceClassification(t.MainItem, t.SubItem) == mainItem.Trim())
+            ).ToList();
+            result.Target = targetRows.Sum(t => t.AnnualTarget);
+            if (result.Target > 0) result.HasData = true;
+            if (!result.HasData) return result;
+
+            if (year.HasValue)
+            {
+                result.Collected = matching.Where(r => r.RecordDate.HasValue && r.RecordDate.Value.Year == year.Value).Sum(r => r.CollectedValue ?? 0);
+                result.Invoiced = matching.Where(r => r.CreatedDate.HasValue && r.CreatedDate.Value.Year == year.Value).Sum(r => r.TotalValue ?? 0);
+            }
+            else
+            {
+                result.Collected = matching.Sum(r => r.CollectedValue ?? 0);
+                result.Invoiced = matching.Sum(r => r.TotalValue ?? 0);
+            }
+
+            var achievedValue = targetSource switch
+            {
+                "Finance" => result.Collected,
+                "BaladiyahHousing" => result.Invoiced,
+                _ => result.Collected + result.Invoiced
+            };
+            result.AchievementPercent = result.Target > 0 ? Math.Round(achievedValue / result.Target * 100, 1) : 0;
+
+            return result;
+        }
+
+        /// <summary>
+        /// البند الرئيسي = قسم (Section) بلا أب ضمن النطاق المختار، الفرعي = أبناؤه المباشرون -
+        /// نفس شجرة فلتر الصفحة الرئيسية (buildHomeFilters بـ section-dashboard.js) بالضبط، بما
+        /// فيها دمج البنود متطابقة الاسم بين الأمانة والبلديات باسم واحد عند عدم تحديد نطاق
+        /// (بدل ظهورها مكرَّرة مرتين) - Section.NameAr هو نص Classification/Category نفسه.
+        /// </summary>
+        public async Task<TargetFilterOptionsData> GetTargetFilterOptionsAsync(string? scope)
+        {
+            var sectionsQuery = _db.Sections.AsNoTracking().Where(s => s.IsActive);
+            if (scope == "Amanah") sectionsQuery = sectionsQuery.Where(s => s.Scope == ScopeType.Amanah);
+            else if (scope == "Baladiyah") sectionsQuery = sectionsQuery.Where(s => s.Scope == ScopeType.Baladiyah);
+            var sections = await sectionsQuery.Select(s => new { s.Id, s.NameAr, s.ParentSectionId }).ToListAsync();
+
+            var mainSections = sections.Where(s => s.ParentSectionId == null).ToList();
+            var mainNames = mainSections.Select(s => s.NameAr.Trim()).Distinct().OrderBy(n => n).ToList();
+
+            var result = new TargetFilterOptionsData { MainItems = mainNames };
+            foreach (var mainName in mainNames)
+            {
+                var mainIds = mainSections.Where(s => s.NameAr.Trim() == mainName).Select(s => s.Id).ToHashSet();
+                var subs = sections
+                    .Where(s => s.ParentSectionId.HasValue && mainIds.Contains(s.ParentSectionId.Value))
+                    .Select(s => s.NameAr.Trim())
+                    .Distinct()
+                    .OrderBy(n => n)
+                    .ToList();
+                if (subs.Count > 0) result.SubItemsByMainItem[mainName] = subs;
+            }
+
+            var yearRecords = await _db.DashboardRecords.AsNoTracking()
+                .Where(r => r.RecordDate.HasValue)
+                .Select(r => new { r.Entity, r.RecordDate })
+                .ToListAsync();
+            var yearsFiltered = scope == "Amanah" ? yearRecords.Where(r => IsAmanah(r.Entity))
+                : scope == "Baladiyah" ? yearRecords.Where(r => !IsAmanah(r.Entity))
+                : yearRecords;
+            result.Years = yearsFiltered
+                .Select(r => r.RecordDate!.Value.Year)
+                .Distinct()
+                .OrderByDescending(y => y)
+                .ToList();
+
+            return result;
+        }
+
         // حالة العقد التي تعني "مبرومة" بلغة صفحة الطرح
         private const string FinalizedStatus = "تم إبرام العقد";
 
@@ -1841,7 +2103,7 @@ namespace ExcelDashboard.Services
         // تُدمَج بهذه الحالة عند الاستيراد، انظر ContractImportService.MergedIntoCancelled)
         private const string CancelledStatus = "إلغاء المنافسة";
 
-        public async Task<TarhPageData> GetTarhDataAsync(string? department, string? status, string? contractNumber, int? year, int? quarter)
+        public async Task<TarhPageData> GetTarhDataAsync(string? department, string? status, string? contractNumber, int? year, int? quarter, string? forcedDepartment = null)
         {
             var all = await _db.ContractRecords.AsNoTracking().ToListAsync();
             var result = new TarhPageData { HasData = all.Count > 0 };
@@ -1909,6 +2171,13 @@ namespace ExcelDashboard.Services
                 tenderedDeptBase = tenderedDeptBase.Where(r => (r.OpportunityNumber ?? "").Contains(contractNumber, StringComparison.OrdinalIgnoreCase));
             var tenderedDeptBaseList = tenderedDeptBase.ToList();
 
+            // موظف مقيّد بإدارة عامة واحدة: يقيّد رسمَي "حسب الإدارة العامة/الفرعية" على إدارته
+            // فقط (خلاف department العادي أعلاه، هذان الرسمان مبنيان عمدًا على all بلا تصفية
+            // إدارة لإتاحة مقارنة الإدارات لمستخدم غير مقيّد - forcedDepartment يكسر هذا التجاوز
+            // لموظف مقيّد تحديدًا)
+            if (!string.IsNullOrWhiteSpace(forcedDepartment))
+                tenderedDeptBaseList = tenderedDeptBaseList.Where(r => r.GeneralDepartment == forcedDepartment).ToList();
+
             int DistinctOpportunityCount(IEnumerable<ContractRecord> recs) =>
                 recs.Select(r => r.OpportunityNumber).Where(o => !string.IsNullOrWhiteSpace(o)).Distinct().Count();
 
@@ -1918,6 +2187,67 @@ namespace ExcelDashboard.Services
                 .Select(g => new TarhDeptSummaryRow { DepartmentLabel = g.Key, Count = DistinctOpportunityCount(g), TotalValue = g.Sum(EffectiveValue) })
                 .OrderByDescending(x => x.TotalValue)
                 .ToList();
+
+            // قيمة العقود المبرومة 2026 حسب الإدارة العامة (منفصل عن DeptSummary أعلاه، اللي
+            // مبني من الفرص المطروحة لا المبرومة تحديدًا) - يغذّي رسم "الملخص التنفيذي" الجديد
+            result.FinalizedByDepartment = deptBase
+                .Where(r => !string.IsNullOrWhiteSpace(r.GeneralDepartment))
+                .GroupBy(r => r.GeneralDepartment!)
+                .Select(g => new TarhDeptSummaryRow { DepartmentLabel = g.Key, Count = DistinctCount(g), TotalValue = g.Sum(r => r.AnnualRent ?? 0) })
+                .OrderByDescending(x => x.TotalValue)
+                .ToList();
+
+            result.TotalOpportunitiesValue = tenderedDeptBaseList.Sum(EffectiveValue);
+
+            // نسبة الإبرام لكل نوع عقد = مبروم 2026 من هذا النوع (TypeSummary أعلاه) ÷ إجمالي هذا
+            // النوع بكل البيانات بلا أي فلتر سنة/حالة (نفس فلسفة TotalOpportunities: "تاريخ فتح
+            // المظاريف" غير مُعبَّأ لكل الأنواع، فلو اعتمدنا فتح المظاريف بسنة 2026 حصرًا كمرجع
+            // تختفي الأنواع غير الاستثمارية من الرسم بالكامل). القائمة مبنية من TypeSummary نفسها
+            // (لا تُنشئ أنواعًا جديدة) حتى تبقى نفس الأنواع الأربعة الظاهرة بصفحة "الطرح" بالضبط
+            // (استثمار/الأبراج/الممرات/تأجير مباشر).
+            // نوع العقد "استثمار" فقط يمرّ فعليًا بمرحلة طرح/فتح مظاريف قبل الإبرام (بيانات
+            // "تاريخ فتح المظاريف" معبّأة له حصرًا) - بقية الأنواع (الأبراج/الممرات/تأجير مباشر)
+            // كل صفوفها بالبيانات الحالية حالتها "تم إبرام العقد" مباشرة بلا مرحلة طرح منفصلة
+            // (تأكّدتُ منها بفحص البيانات: HasEnvelope=0 لكل صفوف هذه الأنواع الثلاثة). لذا:
+            // - النوع اللي له فتح مظاريف: "عدد الفرص" = فُتح مظروفها بسنة 2026 بالضبط
+            // - بقية الأنواع: "الفرصة" = "العقد المبرم" نفسه (نفس TypeSummary أعلاه، 2026 بالضبط)
+            // كل هذا يبقي صف 1 بصفحة "الملخص التنفيذي" بيانات 2026 فقط بكل الأنواع الأربعة معًا
+            // بطلب صريح من المستخدمة (بخلاف TotalOpportunities كل السنوات المستخدَم بصفحة الطرح نفسها)
+            var typesWithTendering = all
+                .Where(r => !string.IsNullOrWhiteSpace(r.ContractType) && r.EnvelopeOpeningDate.HasValue)
+                .Select(r => r.ContractType!)
+                .ToHashSet();
+
+            result.TypeTenderedSummary = result.TypeSummary.Select(t =>
+            {
+                if (typesWithTendering.Contains(t.TypeLabel))
+                {
+                    var tendered2026 = all.Where(r => r.ContractType == t.TypeLabel
+                        && r.EnvelopeOpeningDate.HasValue && r.EnvelopeOpeningDate.Value.Year == 2026).ToList();
+                    var tenderedCount = DistinctOpportunityCount(tendered2026);
+                    var tenderedValue = tendered2026.Sum(EffectiveValue);
+                    return new TarhTypeTenderedRow
+                    {
+                        TypeLabel = t.TypeLabel,
+                        TenderedCount = tenderedCount,
+                        TenderedValue = tenderedValue,
+                        FinalizedCount = t.Count,
+                        FinalizedValue = t.TotalValue,
+                        FinalizedPercent = tenderedCount > 0 ? Math.Round((decimal)t.Count / tenderedCount * 100, 1) : 0
+                    };
+                }
+                return new TarhTypeTenderedRow
+                {
+                    TypeLabel = t.TypeLabel,
+                    TenderedCount = t.Count,
+                    TenderedValue = t.TotalValue,
+                    FinalizedCount = t.Count,
+                    FinalizedValue = t.TotalValue,
+                    FinalizedPercent = 100
+                };
+            })
+            .OrderByDescending(x => x.TenderedCount)
+            .ToList();
 
             result.FinalizedByPortfolio = tenderedDeptBaseList
                 .Where(r => !string.IsNullOrWhiteSpace(r.GeneralDepartment) && !string.IsNullOrWhiteSpace(r.SubPortfolio))
@@ -1976,22 +2306,44 @@ namespace ExcelDashboard.Services
                 .OrderBy(x => x.Year).ThenBy(x => x.Status)
                 .ToList();
 
-            // "تحت إجراءات الترسية": عدد الفرص بإحدى الحالات الثلاث قيد الإجراء، من إجمالي الفرص
-            // التي فُتحت مظاريفها (=طُرحت) - النسبة = عدد الفرص بهذي الحالات ÷ إجمالي فتح
-            // المظاريف × 100 (بطلب صريح من المستخدمة، بدل حساب مدة الفرص باليوم سابقًا)
+            // "تحت إجراءات الترسية": من بين الفرص بإحدى الحالات الثلاث قيد الإجراء التي فُتحت
+            // مظاريفها بسنة 2026 بالضبط - كم تجاوز 30 يوم منذ فتح المظاريف (أحمر) وكم ضمن 30 يوم
+            // (أخضر)، والنسبة بالمنتصف = المتجاوزة ÷ إجمالي الفرص التي فُتحت مظاريفها بـ2026 كلها
+            // (بصرف النظر عن حالتها) × 100. نفس نطاق GetTarhOpportunityOptionsAsync بالضبط
+            // (الحالات الثلاث + سنة فتح المظاريف 2026) حتى يبقى المعروض بالقوس وقائمة "تتبع
+            // الفرصة" متطابقًا (بطلب صريح من المستخدمة، رجوعًا لحساب المدة باليوم بدل الحالة)
             var pendingBase = TarhFilter(all, department, null, contractNumber, null, null);
-            var pendingTenderedTotal = DistinctCount(pendingBase.Where(r => r.EnvelopeOpeningDate.HasValue));
-            var pendingRows = pendingBase.Where(r => r.Status != null && TarhPendingStatuses.Contains(r.Status)).ToList();
-            var pendingCount = DistinctCount(pendingRows);
+            var tenderedThisYear = pendingBase.Where(r => r.EnvelopeOpeningDate.HasValue && r.EnvelopeOpeningDate.Value.Year == 2026).ToList();
+            var tenderedThisYearTotal = DistinctCount(tenderedThisYear);
+            var pendingRows = tenderedThisYear.Where(r => r.Status != null && TarhPendingStatuses.Contains(r.Status)).ToList();
+            var today = DateTime.UtcNow.Date;
+            var exceededRows = pendingRows.Where(r => (today - r.EnvelopeOpeningDate!.Value.Date).TotalDays > 30).ToList();
+            var withinRows = pendingRows.Where(r => (today - r.EnvelopeOpeningDate!.Value.Date).TotalDays <= 30).ToList();
+            var exceededCount = DistinctCount(exceededRows);
             result.DurationStatus = new TarhDurationStatus
             {
-                TotalCount = pendingTenderedTotal,
-                PendingCount = pendingCount,
-                PendingPercent = pendingTenderedTotal > 0 ? Math.Round((decimal)pendingCount / pendingTenderedTotal * 100, 1) : 0,
-                StatusBreakdown = TarhPendingStatuses
-                    .Select(s => new TarhStatusCountRow { Status = s, Count = DistinctCount(pendingRows.Where(r => r.Status == s)) })
+                TotalCount = tenderedThisYearTotal,
+                ExceededCount = exceededCount,
+                WithinCount = DistinctCount(withinRows),
+                ExceededPercent = tenderedThisYearTotal > 0 ? Math.Round((decimal)exceededCount / tenderedThisYearTotal * 100, 1) : 0,
+                StatusBreakdown = pendingRows
+                    .GroupBy(r => r.Status!)
+                    .Select(g => new NameCountRow { Name = g.Key, Count = DistinctCount(g) })
                     .OrderByDescending(x => x.Count)
                     .ToList()
+            };
+
+            // دونات "الفرص المطروحة القادمة" - أسبوع/شهر قادم (من اليوم فصاعدًا، بصرف النظر عن
+            // الحالة، بنفس نطاق pendingBase - فلترا الإدارة/رقم العقد فقط) + إجمالي 2026 (نفس
+            // tenderedThisYearTotal أعلاه)
+            var weekEnd = today.AddDays(7);
+            var monthEnd = today.AddMonths(1);
+            var upcomingBase = pendingBase.Where(r => r.EnvelopeOpeningDate.HasValue && r.EnvelopeOpeningDate.Value.Date >= today).ToList();
+            result.UpcomingTenders = new TarhUpcomingTenders
+            {
+                NextWeekCount = DistinctCount(upcomingBase.Where(r => r.EnvelopeOpeningDate!.Value.Date <= weekEnd)),
+                NextMonthCount = DistinctCount(upcomingBase.Where(r => r.EnvelopeOpeningDate!.Value.Date <= monthEnd)),
+                Year2026Count = tenderedThisYearTotal
             };
 
             return result;
@@ -2003,6 +2355,13 @@ namespace ExcelDashboard.Services
         public async Task<List<TarhOpportunityOption>> GetTarhOpportunityOptionsAsync()
         {
             var all = await _db.ContractRecords.AsNoTracking().ToListAsync();
+            // الربط مع DebtInvoiceRecords يتم عبر ContractIdRaw ("CONTRACT_ID") لا ContractNumber
+            // ("رقم العقد") - عمود "رقم العقد" بملف المديونيات أرقام داخلية صغيرة لا تطابق صيغة
+            // "CN-XXXXX" المستخدمة هنا (راجع تعليق DebtsAnalyticsService.FindByContractNumberAsync)
+            var investorsByContract = await _db.DebtInvoiceRecords.AsNoTracking()
+                .Where(r => !string.IsNullOrWhiteSpace(r.ContractIdRaw) && !string.IsNullOrWhiteSpace(r.InvestorName))
+                .GroupBy(r => r.ContractIdRaw!)
+                .ToDictionaryAsync(g => g.Key, g => g.Select(r => r.InvestorName!).First());
             var today = DateTime.UtcNow.Date;
             return all
                 .Where(r => !string.IsNullOrWhiteSpace(r.OpportunityNumber) && r.Status != null &&
@@ -2012,7 +2371,14 @@ namespace ExcelDashboard.Services
                 {
                     var days = (today - r.EnvelopeOpeningDate!.Value.Date).TotalDays;
                     var durationStatus = days <= 30 ? "ضمن 30 يوم" : "تجاوزت 30 يوم";
-                    return new TarhOpportunityOption { OpportunityNumber = r.OpportunityNumber!, OpportunityName = r.OpportunityName, DurationStatus = durationStatus };
+                    return new TarhOpportunityOption
+                    {
+                        OpportunityNumber = r.OpportunityNumber!,
+                        OpportunityName = r.OpportunityName,
+                        InvestorName = r.InvestorName ?? (r.ContractNumber != null && investorsByContract.TryGetValue(r.ContractNumber, out var investorName) ? investorName : null),
+                        ContractNumber = r.ContractNumber,
+                        DurationStatus = durationStatus
+                    };
                 })
                 .OrderBy(x => x.OpportunityNumber)
                 .ToList();
@@ -2026,11 +2392,20 @@ namespace ExcelDashboard.Services
             if (record == null)
                 return new TarhOpportunityTimeline { Found = false };
 
+            var investorName = record.InvestorName;
+            if (string.IsNullOrWhiteSpace(investorName) && !string.IsNullOrWhiteSpace(record.ContractNumber))
+                // الربط عبر ContractIdRaw ("CONTRACT_ID") لا ContractNumber ("رقم العقد") - راجع
+                // تعليق DebtsAnalyticsService.FindByContractNumberAsync
+                investorName = await _db.DebtInvoiceRecords.AsNoTracking()
+                    .Where(r => r.ContractIdRaw == record.ContractNumber && !string.IsNullOrWhiteSpace(r.InvestorName))
+                    .Select(r => r.InvestorName).FirstOrDefaultAsync();
+
             var timeline = new TarhOpportunityTimeline
             {
                 Found = true,
                 OpportunityNumber = record.OpportunityNumber,
                 OpportunityName = record.OpportunityName,
+                InvestorName = investorName,
                 ContractNumber = record.ContractNumber,
                 Status = record.Status,
                 EnvelopeOpeningDate = record.EnvelopeOpeningDate,
@@ -2058,6 +2433,38 @@ namespace ExcelDashboard.Services
             }
 
             return timeline;
+        }
+
+        /// <summary>قائمة الفرص التي فُتحت مظاريفها ضمن نطاق تاريخ معيّن - راجع توثيق الواجهة</summary>
+        public async Task<List<TarhEnvelopeOpenedRow>> GetTarhEnvelopeOpenedAsync(DateTime start, DateTime end, string? forcedDepartment = null)
+        {
+            var startDate = start.Date;
+            var endDate = end.Date;
+
+            IQueryable<ContractRecord> query = _db.ContractRecords.AsNoTracking()
+                .Where(r => r.EnvelopeOpeningDate.HasValue
+                         && r.EnvelopeOpeningDate.Value.Date >= startDate
+                         && r.EnvelopeOpeningDate.Value.Date <= endDate);
+
+            if (!string.IsNullOrWhiteSpace(forcedDepartment))
+                query = query.Where(r => r.GeneralDepartment == forcedDepartment);
+
+            var rows = await query
+                .OrderByDescending(r => r.EnvelopeOpeningDate)
+                .Select(r => new TarhEnvelopeOpenedRow
+                {
+                    OpportunityNumber = r.OpportunityNumber,
+                    OpportunityName = r.OpportunityName,
+                    InvestorName = r.InvestorName,
+                    GeneralDepartment = r.GeneralDepartment,
+                    SubPortfolio = r.SubPortfolio,
+                    Status = r.Status,
+                    EnvelopeOpeningDate = r.EnvelopeOpeningDate,
+                    Value = r.ContractValue ?? r.AnnualRent
+                })
+                .ToListAsync();
+
+            return rows;
         }
 
         // الحالات الثلاث اللي تُعتبر "تحت إجراءات الترسية" - نطاق مشترك بين رسمة حالة مدة الفرص
