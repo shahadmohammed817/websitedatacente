@@ -10,6 +10,12 @@ const INV_C = {
 };
 const INV_AXIS_LABEL_STYLE = { color: INV_C.axisText, fontSize: 13, fontWeight: 600 };
 const INV_PALETTE = [INV_C.dark, INV_C.mid, INV_C.lime, INV_C.light, INV_C.limeDk];
+// ألوان رسمَي "مستحق مدفوع/غير مدفوع": الإدارة العامة تبقى الافتراضي (dark/mid)، والمحفظة
+// الفرعية بألوان مختلفة (limeDk/light) لتمييز الرسمين بصريًا - بطلب المستخدمة
+const INV_PAY_PORTFOLIO_COLORS = { paid: INV_C.limeDk, unpaid: INV_C.light };
+// ألوان رسمَي "متعثر/تم الإرسال لتنفيذ": الإدارة العامة (mid/lime)، والمحفظة الفرعية (dark/limeDk)
+const INV_STALLED_DEPT_COLORS = { stalled: INV_C.mid, execution: INV_C.lime };
+const INV_STALLED_PORTFOLIO_COLORS = { stalled: INV_C.dark, execution: INV_C.limeDk };
 
 function invAxisStyle(extra) {
     extra = extra || {};
@@ -303,7 +309,8 @@ function invRenderStatusTotals(data) {
    لأن قيمته ضخمة جدًا مقارنة بمدفوع/غير مدفوع (يشمل كل الدفعات المستقبلية لعقود
    طويلة المدى) فيطغى بصريًا لو ضُمّ بنفس المحور - بطلب صريح من المستخدمة
    ========================================================================== */
-function invBuildStackedPaymentOption(labels, rows) {
+function invBuildStackedPaymentOption(labels, rows, colors) {
+    colors = colors || { paid: INV_C.dark, unpaid: INV_C.mid };
     const paid = rows.map(function (r) { return r.duePaidValue; });
     const unpaid = rows.map(function (r) { return r.dueUnpaidValue; });
     const totals = rows.map(function (r, i) { return paid[i] + unpaid[i]; });
@@ -328,9 +335,9 @@ function invBuildStackedPaymentOption(labels, rows) {
         xAxis: invAxisStyle({ type: "category", data: labels, axisLabel: { interval: 0, rotate: 0, fontSize: 11, width: 100, overflow: "break" } }),
         yAxis: invAxisStyle({ type: "value", min: 0, axisLabel: { show: false }, splitLine: { show: false } }),
         series: [
-            { name: "مدفوع", type: "bar", stack: "s", barMaxWidth: 70, barCategoryGap: "45%", data: paid, itemStyle: { color: INV_C.dark }, label: lbl("#fff") },
+            { name: "مدفوع", type: "bar", stack: "s", barMaxWidth: 70, barCategoryGap: "45%", data: paid, itemStyle: { color: colors.paid }, label: lbl("#fff") },
             {
-                name: "غير مدفوع", type: "bar", stack: "s", data: unpaid, itemStyle: { color: INV_C.mid, borderRadius: [4, 4, 0, 0] },
+                name: "غير مدفوع", type: "bar", stack: "s", data: unpaid, itemStyle: { color: colors.unpaid, borderRadius: [4, 4, 0, 0] },
                 label: {
                     show: true, position: "top", color: INV_C.axisText, fontWeight: 800, fontSize: 13,
                     formatter: function (p) {
@@ -362,7 +369,7 @@ function invUpdatePaymentCharts(data) {
     const portfolioRows = (data.portfolioPaymentBreakdown || []).filter(function (r) { return r.departmentLabel === invSelectedDeptPay; });
     const portfolioLabels = portfolioRows.map(function (r) { return r.portfolioLabel; });
     if (invPayPortfolioChartRef) {
-        invPayPortfolioChartRef.setOption(invBuildStackedPaymentOption(portfolioLabels, portfolioRows), true);
+        invPayPortfolioChartRef.setOption(invBuildStackedPaymentOption(portfolioLabels, portfolioRows, INV_PAY_PORTFOLIO_COLORS), true);
         const badge = invPayPortfolioChartRef._invCard && invPayPortfolioChartRef._invCard.querySelector(".chart-badge");
         if (badge) badge.textContent = invSelectedDeptPay || "—";
     }
@@ -379,7 +386,7 @@ function invRenderPaymentBreakdown(data) {
     const portfolioRows = (data.portfolioPaymentBreakdown || []).filter(function (r) { return r.departmentLabel === invSelectedDeptPay; });
     const portfolioLabels = portfolioRows.map(function (r) { return r.portfolioLabel; });
     invPayPortfolioChartRef = invRenderChart("invChartsRow2", "invPayPortfolioChart", "مستحق مدفوع / غير مدفوع - المحفظة الفرعية", invSelectedDeptPay || "—",
-        invBuildStackedPaymentOption(portfolioLabels, portfolioRows), 380);
+        invBuildStackedPaymentOption(portfolioLabels, portfolioRows, INV_PAY_PORTFOLIO_COLORS), 380);
 
     if (invPayDeptChartRef) {
         invPayDeptChartRef.on("click", function (params) {
@@ -491,35 +498,84 @@ function invRenderDonutDetail(elId, rows, total) {
 
 // نفس تخطيط "الشكل الثاني" بصفحة الإدارات العامة (شريط أفقي مكدَّس بدل مجمَّع) لكن بلا
 // بادج نسبة - الرقم يبقى دومًا ظاهرًا داخل كل قطعة من الشريط (مو بس عند مرور الماوس)
-function invBuildGroupedBarOption(labels, stalledCounts, executionCounts) {
+// العمود يعرض القيمة (الأجرة السنوية للعقود المتعثرة/المُرسَلة)، والتلميح عند المرور يعرض
+// العدد + القيمة معًا - بطلب المستخدمة
+function invBuildGroupedBarOption(labels, stalledValues, executionValues, stalledCounts, executionCounts, colors) {
+    colors = colors || INV_STALLED_DEPT_COLORS;
     // مقلوبة لأن محور الفئات يرسم من الأسفل للأعلى، والقيم أصلاً مرتّبة تنازليًا من الخادم
     const revLabels = labels.slice().reverse();
-    const revStalled = stalledCounts.slice().reverse();
-    const revExecution = executionCounts.slice().reverse();
+    const revStalledV = stalledValues.slice().reverse();
+    const revExecutionV = executionValues.slice().reverse();
+    const revStalledC = (stalledCounts || []).slice().reverse();
+    const revExecutionC = (executionCounts || []).slice().reverse();
 
     function segLabel() {
         return { show: true, position: "inside", color: "#fff", fontWeight: 700, fontSize: 11, formatter: function (p) { return p.value > 0 ? invFormatNum(p.value) : ""; } };
     }
 
     return {
-        tooltip: invTooltip({ trigger: "axis", axisPointer: { type: "shadow" } }),
+        tooltip: invTooltip({
+            trigger: "axis", axisPointer: { type: "shadow" },
+            formatter: function (params) {
+                if (!params.length) return "";
+                var i = params[0].dataIndex;
+                var html = '<div style="font-weight:700;margin-bottom:4px;">' + invEscape(revLabels[i]) + '</div>';
+                params.forEach(function (p) {
+                    var cnt = p.seriesName === "متعثر" ? revStalledC[i] : revExecutionC[i];
+                    html += '<div>' + p.marker + p.seriesName + ': <strong>' + invFormatNum(p.value) + '</strong>' +
+                        (cnt !== undefined ? ' <span style="color:var(--muted);">(' + invFormatNum(cnt) + ' عقد)</span>' : '') + '</div>';
+                });
+                return html;
+            }
+        }),
         legend: { bottom: 0, textStyle: Object.assign({}, INV_AXIS_LABEL_STYLE, { fontSize: 11 }), itemWidth: 10, itemHeight: 10 },
         grid: { left: 190, right: 40, top: 10, bottom: 34 },
         xAxis: invAxisStyle({ type: "value", show: false }),
         yAxis: invAxisStyle({ type: "category", data: revLabels, axisLabel: { width: 180, overflow: "break", lineHeight: 16, fontSize: 12, fontWeight: 600 } }),
         series: [
-            { name: "متعثر", type: "bar", stack: "s", barMaxWidth: 26, cursor: "pointer", itemStyle: { color: INV_C.mid }, data: revStalled, label: segLabel() },
-            { name: "تم الإرسال لتنفيذ", type: "bar", stack: "s", barMaxWidth: 26, cursor: "pointer", itemStyle: { color: INV_C.lime, borderRadius: [0, 4, 4, 0] }, data: revExecution, label: segLabel() }
+            { name: "متعثر", type: "bar", stack: "s", barMaxWidth: 26, cursor: "pointer", itemStyle: { color: colors.stalled }, data: revStalledV, label: segLabel() },
+            { name: "تم الإرسال لتنفيذ", type: "bar", stack: "s", barMaxWidth: 26, cursor: "pointer", itemStyle: { color: colors.execution, borderRadius: [0, 4, 4, 0] }, data: revExecutionV, label: segLabel() }
         ]
     };
 }
 
 let invSelectedDeptB = null;
 
-function invRenderFunnelAndStalled(data) {
-    const row3 = document.getElementById("invChartsRow3");
-    if (row3) row3.classList.add("inv-funnel-row");
+function invGroupedStalledSeries(rows) {
+    return [
+        rows.map(function (r) { return r.stalledValue; }),
+        rows.map(function (r) { return r.sentToExecutionValue; }),
+        rows.map(function (r) { return r.stalledCount; }),
+        rows.map(function (r) { return r.sentToExecutionCount; })
+    ];
+}
 
+function invRenderFunnelAndStalled(data) {
+    // صف 3 صار رسمَي "متعثر/تم الإرسال" فقط - عمودان متساويان (1fr/1fr) لا 0.75/1.25 كأيام الدونات
+    const row3 = document.getElementById("invChartsRow3");
+    if (row3) row3.classList.remove("inv-funnel-row");
+
+    // صف 3: [متعثر/تم الإرسال - المحفظة الفرعية] (مكان الدونات سابقًا) + [متعثر/تم الإرسال - الإدارة العامة]
+    const deptRows = data.deptStalledVsExecution || [];
+    const deptLabels = deptRows.map(function (r) { return r.departmentLabel; });
+    invSelectedDeptB = deptLabels.length ? deptLabels[0] : null;
+
+    invRenderPortfolioStalled(data, invSelectedDeptB);
+
+    const ds = invGroupedStalledSeries(deptRows);
+    const deptChart = invRenderChart("invChartsRow3", "invDeptStalledChart", "متعثر / تم الإرسال لتنفيذ - حسب الإدارة العامة", "اضغط إدارة",
+        invBuildGroupedBarOption(deptLabels, ds[0], ds[1], ds[2], ds[3], INV_STALLED_DEPT_COLORS), 400);
+
+    if (deptChart) {
+        deptChart.on("click", function (params) {
+            if (params.componentType !== "series" || !params.name) return;
+            if (params.name === invSelectedDeptB) return;
+            invSelectedDeptB = params.name;
+            invRenderPortfolioStalled(data, invSelectedDeptB, true);
+        });
+    }
+
+    // صف 4: دونات "مسار الدفعات" - نُقلت لأسفل بطلب المستخدمة
     const donutRows = (data.funnelStages || []).map(function (s) { return { label: s.label, value: s.count }; });
     const total = donutRows.reduce(function (s, r) { return s + r.value; }, 0);
     const donutId = "invFunnelDonut_" + Date.now();
@@ -530,30 +586,12 @@ function invRenderFunnelAndStalled(data) {
         '<div class="chart-header"><div class="chart-title">مسار الدفعات</div></div>' +
         '<div class="echart-box" id="' + donutId + '" style="height:220px;max-width:285px;margin:0 auto;"></div>' +
         '<div id="' + donutListId + '" style="margin-top:10px;"></div>';
-    document.getElementById("invChartsRow3").appendChild(div);
+    document.getElementById("invChartsRow4").appendChild(div);
     const donutChart = echarts.init(document.getElementById(donutId));
     donutChart.setOption(invBuildDonutOption(donutRows));
     invCharts.push(donutChart);
     requestAnimationFrame(function () { try { donutChart.resize(); } catch (e) {} });
     invRenderDonutDetail(donutListId, donutRows, total);
-
-    const deptRows = data.deptStalledVsExecution || [];
-    const deptLabels = deptRows.map(function (r) { return r.departmentLabel; });
-    invSelectedDeptB = deptLabels.length ? deptLabels[0] : null;
-
-    const deptChart = invRenderChart("invChartsRow3", "invDeptStalledChart", "متعثر / تم الإرسال لتنفيذ - حسب الإدارة العامة", "اضغط إدارة",
-        invBuildGroupedBarOption(deptLabels, deptRows.map(function (r) { return r.stalledCount; }), deptRows.map(function (r) { return r.sentToExecutionCount; })), 400);
-
-    invRenderPortfolioStalled(data, invSelectedDeptB);
-
-    if (deptChart) {
-        deptChart.on("click", function (params) {
-            if (params.componentType !== "series" || !params.name) return;
-            if (params.name === invSelectedDeptB) return;
-            invSelectedDeptB = params.name;
-            invRenderPortfolioStalled(data, invSelectedDeptB, true);
-        });
-    }
 }
 
 let invPortfolioStalledChart = null;
@@ -561,7 +599,8 @@ let invPortfolioStalledChart = null;
 function invRenderPortfolioStalled(data, deptLabel, isUpdate) {
     const rows = (data.portfolioStalledVsExecution || []).filter(function (r) { return r.departmentLabel === deptLabel; });
     const labels = rows.map(function (r) { return r.portfolioLabel; });
-    const option = invBuildGroupedBarOption(labels, rows.map(function (r) { return r.stalledCount; }), rows.map(function (r) { return r.sentToExecutionCount; }));
+    const ps = invGroupedStalledSeries(rows);
+    const option = invBuildGroupedBarOption(labels, ps[0], ps[1], ps[2], ps[3], INV_STALLED_PORTFOLIO_COLORS);
 
     if (isUpdate && invPortfolioStalledChart) {
         invPortfolioStalledChart.setOption(option, true);
@@ -571,7 +610,7 @@ function invRenderPortfolioStalled(data, deptLabel, isUpdate) {
         return;
     }
 
-    invPortfolioStalledChart = invRenderChart("invChartsRow4", "invPortfolioStalledChart", "متعثر / تم الإرسال لتنفيذ - حسب المحفظة الفرعية", deptLabel || "—", option, 360);
+    invPortfolioStalledChart = invRenderChart("invChartsRow3", "invPortfolioStalledChart", "متعثر / تم الإرسال لتنفيذ - حسب المحفظة الفرعية", deptLabel || "—", option, 400);
 }
 
 /* ==========================================================================

@@ -1198,6 +1198,8 @@ h1, h2, h3, h4 { font-family: "Cairo", "Tajawal", sans-serif; margin: 0; }
    الترسية) وعددها - أسفل قوس "تحت إجراءات الترسية" مباشرة */
 .tarh-duration-status-list { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 6px; }
 .tarh-duration-status-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .82rem; font-weight: 700; color: var(--text); }
+.tarh-duration-status-item.clickable { cursor: pointer; border-radius: 6px; padding: 3px 6px; margin: -3px -6px; transition: background .15s; }
+.tarh-duration-status-item.clickable:hover { background: var(--brand-soft, rgba(14,110,97,.08)); color: var(--brand-dark); }
 .tarh-duration-status-count { color: var(--brand-dark); font-weight: 800; }
 
 .tarh-duration-avg { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); font-size: .9rem; color: var(--muted); font-weight: 700; }

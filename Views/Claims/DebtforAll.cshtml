@@ -1,6 +1,6 @@
 @{
     Layout = "_Layout";
-    ViewData["Title"] = "المديونيات لكل البنود";
+    ViewData["Title"] = "المديونيات لجميع البنود";
     ViewData["FullWidth"] = "1";
     ViewData["HasSidebar"] = "1";
 }
@@ -25,7 +25,7 @@
             <div class="breadcrumb-bar">
                 <a href="@Url.Action("Index", "Home")">الرئيسية</a>
                 <span>/</span>
-                <span>المديونيات لكل البنود</span>
+                <span>المديونيات لجميع البنود</span>
             </div>
         </div>
 
@@ -33,7 +33,7 @@
             <div class="dash-header-info">
                 <div class="dash-icon-badge">@Icons.Svg("alert", "")</div>
                 <div>
-                    <div class="page-title" style="margin-bottom:0;">المديونيات لكل البنود</div>
+                    <div class="page-title" style="margin-bottom:0;">المديونيات لجميع البنود</div>
                     <div class="page-subtitle" style="margin-bottom:0;">بدون رسوم</div>
                 </div>
             </div>
@@ -48,8 +48,11 @@
         </div>
 
         <div id="dfaFilterBar" class="dash-filter-bar" style="margin-bottom:14px;"></div>
+        <div id="dfaLoadingNote" style="display:none;margin-bottom:12px;font-weight:700;color:var(--muted);font-size:.9rem;">
+            <i class="bi bi-arrow-repeat"></i> جارِ تحديث البيانات…
+        </div>
 
-        <div id="dfaContent" style="display:none;">
+        <div id="dfaContent" style="display:none;transition:opacity .15s;">
             <div class="tarh-kpi-grid" id="dfaKpiGrid"></div>
             <div class="charts-grid-3" id="dfaChartsRow1" style="margin-bottom:18px;"></div>
             <div class="charts-grid-3" id="dfaChartsRow2"></div>

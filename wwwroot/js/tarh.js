@@ -544,7 +544,9 @@ function tarhRenderDurationStatus(d) {
 
     const gaugeId = "tarhDurationGauge_" + Date.now();
     const statusListHtml = (d.statusBreakdown || []).map(function (s) {
-        return '<div class="tarh-duration-status-item"><span>' + tarhEscape(s.name) + '</span><span class="tarh-duration-status-count">' + tarhFormatNum(s.count) + '</span></div>';
+        return '<div class="tarh-duration-status-item clickable" data-status="' + tarhEscape(s.name) + '">' +
+            '<span>' + tarhEscape(s.name) + '</span>' +
+            '<span class="tarh-duration-status-count">' + tarhFormatNum(s.count) + '</span></div>';
     }).join("");
     div.innerHTML =
         '<div class="tarh-duration-header">' +
@@ -558,6 +560,13 @@ function tarhRenderDurationStatus(d) {
         (statusListHtml ? '<div class="tarh-duration-status-list">' + statusListHtml + '</div>' : '');
 
     row.appendChild(div);
+
+    // الضغط على اسم حالة بالقائمة أسفل القوس يعرض فرص تلك الحالة فقط ببطاقة "تتبع الفرصة"
+    div.querySelectorAll(".tarh-duration-status-item.clickable").forEach(function (item) {
+        item.addEventListener("click", function () {
+            tarhShowTrackPanel(null, item.getAttribute("data-status"));
+        });
+    });
 
     // بطاقة "تتبع الفرصة" - جنب القوس مباشرة (بالمساحة الفارغة بنفس الصف) بدل نافذة منبثقة،
     // مخفية بالكامل بحالتها الافتراضية (لا تظهر حتى فارغة) وتظهر فقط فور الضغط على القوس
@@ -659,6 +668,9 @@ function tarhOppDotClass(durationStatus) {
 // null = كل الفرص، "within" = ضمن 30 يومًا فقط، "over" = المتجاوزة فقط - يُضبَط عند فتح
 // النافذة (من زر "تتبع الفرصة" العام أو من الضغط على جزء لوني بقوس "حالة مدة الفرص")
 let tarhModalStatusFilter = null;
+// اسم حالة إجراء بعينها (مثل "تحت إجراءات الترسية") - يُضبَط عند الضغط على اسم حالة بالقائمة
+// أسفل القوس، فتُعرض فرص تلك الحالة فقط. null = بلا فلترة حالة
+let tarhModalStatusName = null;
 
 // تُعرض القائمة دائمًا كاملة لكل الفرص المطابقة للون المختار (بلا بحث نصي) - تُبنى من جديد
 // في كل مرة تُفتح فيها النافذة أو يُضغط "رجوع" حتى تبقى موثوقة مهما تكرّر الفتح والإغلاق
@@ -671,6 +683,9 @@ function tarhRenderOpportunityList() {
         matches = matches.filter(function (o) { return o.durationStatus === "ضمن 30 يوم"; });
     } else if (tarhModalStatusFilter === "over") {
         matches = matches.filter(function (o) { return o.durationStatus === "تجاوزت 30 يوم"; });
+    }
+    if (tarhModalStatusName) {
+        matches = matches.filter(function (o) { return o.status === tarhModalStatusName; });
     }
 
     if (matches.length === 0) {
@@ -694,8 +709,9 @@ function tarhRenderOpportunityList() {
     });
 }
 
-function tarhShowTrackPanel(statusFilter) {
+function tarhShowTrackPanel(statusFilter, statusName) {
     tarhModalStatusFilter = statusFilter || null;
+    tarhModalStatusName = statusName || null;
 
     // أول ضغطة فعلية على القوس: تُظهر البطاقة (كانت مخفية بالكامل قبل ذلك)
     var trackCard = document.getElementById("tarhTrackCard");
@@ -712,7 +728,8 @@ function tarhShowTrackPanel(statusFilter) {
 
     var titleEl = document.getElementById("tarhTrackTitle");
     if (titleEl) {
-        var label = tarhModalStatusFilter === "within" ? "الفرص ضمن 30 يومًا"
+        var label = tarhModalStatusName ? tarhModalStatusName
+            : tarhModalStatusFilter === "within" ? "الفرص ضمن 30 يومًا"
             : tarhModalStatusFilter === "over" ? "الفرص المتجاوزة 30 يومًا"
             : "تتبع الفرصة";
         titleEl.innerHTML = '<i class="bi bi-signpost-split"></i> ' + tarhEscape(label);

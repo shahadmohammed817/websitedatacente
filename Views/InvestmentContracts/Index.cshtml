@@ -2,7 +2,7 @@
     Layout = "_Layout";
     string scope = (ViewBag.Scope as string) ?? "Amanah";
     bool isBaladiyah = string.Equals(scope, "Baladiyah", StringComparison.OrdinalIgnoreCase);
-    string pageTitle = isBaladiyah ? "جميع العقود الاستثمارية - بلدية" : "جميع العقود الاستثمارية";
+    string pageTitle = isBaladiyah ? "جميع العقود الاستثمارية - بلدية" : "جميع العقود الاستثمارية - أمانة";
     ViewData["Title"] = pageTitle;
     ViewData["FullWidth"] = "1";
     ViewData["HasSidebar"] = "1";

@@ -8,6 +8,10 @@ var builder = WebApplication.CreateBuilder(args);
 // ===== MVC =====
 builder.Services.AddControllersWithViews();
 
+// ذاكرة تخزين مؤقت داخلية - تُستخدم لتخبئة سجلات "المديونيات لجميع البنود" (216 ألف صف)
+// حتى لا تُقرأ من قاعدة البيانات بكل تغيير فلتر (كانت تستغرق ~1.7 ثانية بكل طلب)
+builder.Services.AddMemoryCache();
+
 // ===== تعريف الموظف بالرقم الوظيفي (بلا كلمة مرور) - جلسة بسيطة تحدد إدارته العامة =====
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>

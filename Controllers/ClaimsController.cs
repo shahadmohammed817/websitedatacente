@@ -42,9 +42,9 @@ namespace ExcelDashboard.Controllers
         }
 
         [HttpGet("Claims/DebtforAll/Data")]
-        public async Task<IActionResult> DebtforAllData(int? year, int? quarter, int? month, int? hijriYear)
+        public async Task<IActionResult> DebtforAllData(int? year, int? quarter, int? month, int? hijriYear, string? scope)
         {
-            var data = await _debtforallAnalytics.GetDataAsync(year, quarter, month, hijriYear);
+            var data = await _debtforallAnalytics.GetDataAsync(year, quarter, month, hijriYear, scope);
             return Json(data);
         }
 

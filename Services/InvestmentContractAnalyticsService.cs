@@ -117,6 +117,8 @@ namespace ExcelDashboard.Services
         public string DepartmentLabel { get; set; } = string.Empty;
         public int StalledCount { get; set; }
         public int SentToExecutionCount { get; set; }
+        public decimal StalledValue { get; set; }
+        public decimal SentToExecutionValue { get; set; }
     }
 
     public class InvPortfolioStalledRow
@@ -125,6 +127,8 @@ namespace ExcelDashboard.Services
         public string PortfolioLabel { get; set; } = string.Empty;
         public int StalledCount { get; set; }
         public int SentToExecutionCount { get; set; }
+        public decimal StalledValue { get; set; }
+        public decimal SentToExecutionValue { get; set; }
     }
 
     public interface IInvestmentContractAnalyticsService
@@ -342,9 +346,11 @@ namespace ExcelDashboard.Services
                 {
                     DepartmentLabel = g.Key,
                     StalledCount = g.Sum(r => r.StalledCount ?? 0),
-                    SentToExecutionCount = g.Sum(r => r.SentToExecutionCount ?? 0)
+                    SentToExecutionCount = g.Sum(r => r.SentToExecutionCount ?? 0),
+                    StalledValue = g.Sum(r => r.StalledValue ?? 0),
+                    SentToExecutionValue = g.Sum(r => r.SentToExecutionValue ?? 0)
                 })
-                .OrderByDescending(x => x.StalledCount + x.SentToExecutionCount)
+                .OrderByDescending(x => x.StalledValue + x.SentToExecutionValue)
                 .ToList();
 
             result.PortfolioStalledVsExecution = filteredRows
@@ -355,9 +361,11 @@ namespace ExcelDashboard.Services
                     DepartmentLabel = g.Key.Dept,
                     PortfolioLabel = g.Key.Portfolio,
                     StalledCount = g.Sum(r => r.StalledCount ?? 0),
-                    SentToExecutionCount = g.Sum(r => r.SentToExecutionCount ?? 0)
+                    SentToExecutionCount = g.Sum(r => r.SentToExecutionCount ?? 0),
+                    StalledValue = g.Sum(r => r.StalledValue ?? 0),
+                    SentToExecutionValue = g.Sum(r => r.SentToExecutionValue ?? 0)
                 })
-                .OrderByDescending(x => x.StalledCount + x.SentToExecutionCount)
+                .OrderByDescending(x => x.StalledValue + x.SentToExecutionValue)
                 .ToList();
 
             return result;

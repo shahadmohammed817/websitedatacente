@@ -1,5 +1,5 @@
 /* ==========================================================================
-   صفحة "المديونيات لكل البنود" (بدون رسوم): رفع الملف + كرتا KPI (إجمالي القيمة/العدد) +
+   صفحة "المديونيات لجميع البنود" (بدون رسوم): رفع الملف + كرتا KPI (إجمالي القيمة/العدد) +
    دونات (القيمة حسب البند) + أعمدة أفقية (العدد حسب البند) + Lollipop (العدد حسب فترة تاريخ
    الإنشاء) + 3 كروت قيمة لكل فترة
    ========================================================================== */
@@ -57,7 +57,9 @@ const DFA_MONTH_LABELS = {
     "1": "يناير", "2": "فبراير", "3": "مارس", "4": "أبريل", "5": "مايو", "6": "يونيو",
     "7": "يوليو", "8": "أغسطس", "9": "سبتمبر", "10": "أكتوبر", "11": "نوفمبر", "12": "ديسمبر"
 };
-const dfaFilters = { year: "", quarter: "", month: "", hijriYear: "" };
+const dfaFilters = { scope: "", year: "", quarter: "", month: "", hijriYear: "" };
+// قيم عمود "الأمانة/بلدى" الخام بالملف رموز إنجليزية - تُعرض بالعربية مثل فلتر الصفحة الرئيسية
+const DFA_SCOPE_LABELS = { "AMANA": "الأمانة", "BALADY": "البلديات" };
 
 function dfaMakeSelectWrap(id, iconClass, allLabel, options, selected, labelMap) {
     const wrap = document.createElement("div");
@@ -82,16 +84,22 @@ function dfaBuildFilterBar(data) {
     if (!bar) return;
     bar.innerHTML = "";
 
+    const scopeOpts = data.scopeOptions || [];
+    const scopeLabelMap = {};
+    scopeOpts.forEach(function (o) { scopeLabelMap[String(o)] = DFA_SCOPE_LABELS[o] || o; });
+    const scope = dfaMakeSelectWrap("dfaScopeFilter", "bi-buildings", "الأمانة والبلديات (الكل)", scopeOpts, dfaFilters.scope, scopeLabelMap);
     const year = dfaMakeSelectWrap("dfaYearFilter", "bi-calendar-event", "كل السنوات", data.yearOptions || [], dfaFilters.year);
     const quarter = dfaMakeSelectWrap("dfaQuarterFilter", "bi-calendar3", "كل الأرباع", ["1", "2", "3", "4"], dfaFilters.quarter, DFA_QUARTER_LABELS);
     const month = dfaMakeSelectWrap("dfaMonthFilter", "bi-calendar-month", "كل الأشهر", data.monthOptions || [], dfaFilters.month, DFA_MONTH_LABELS);
     const hijriYear = dfaMakeSelectWrap("dfaHijriYearFilter", "bi-moon-stars", "كل السنوات الهجرية", data.hijriYearOptions || [], dfaFilters.hijriYear);
 
+    bar.appendChild(scope.wrap);
     bar.appendChild(year.wrap);
     bar.appendChild(quarter.wrap);
     bar.appendChild(month.wrap);
     bar.appendChild(hijriYear.wrap);
 
+    scope.select.addEventListener("change", function () { dfaFilters.scope = scope.select.value; dfaLoad(); });
     year.select.addEventListener("change", function () { dfaFilters.year = year.select.value; dfaLoad(); });
     quarter.select.addEventListener("change", function () { dfaFilters.quarter = quarter.select.value; dfaLoad(); });
     month.select.addEventListener("change", function () { dfaFilters.month = month.select.value; dfaLoad(); });
@@ -100,6 +108,7 @@ function dfaBuildFilterBar(data) {
 
 function dfaQueryString() {
     const p = new URLSearchParams();
+    if (dfaFilters.scope) p.set("scope", dfaFilters.scope);
     if (dfaFilters.year) p.set("year", dfaFilters.year);
     if (dfaFilters.quarter) p.set("quarter", dfaFilters.quarter);
     if (dfaFilters.month) p.set("month", dfaFilters.month);
@@ -351,15 +360,28 @@ function dfaRenderPeriodSection(data) {
 /* ==========================================================================
    التحميل الرئيسي: يجلب البيانات ويعرضها، أو يظهر صندوق "لا توجد بيانات"
    ========================================================================== */
+let dfaLoadSeq = 0;
+
 async function dfaLoad() {
     if (!window.DFA_DATA_URL) return;
     const content = document.getElementById("dfaContent");
     const noData = document.getElementById("dfaNoDataBox");
+    const loadingNote = document.getElementById("dfaLoadingNote");
+
+    // مؤشر تحديث: نعتّم المحتوى الحالي ونعرض "جارِ التحديث" بدل ترك أرقام قديمة بلا إشارة.
+    // dfaLoadSeq يتجاهل أي استجابة قديمة إن غيّرت المستخدمة الفلتر بسرعة قبل وصول السابقة.
+    const seq = ++dfaLoadSeq;
+    if (loadingNote) loadingNote.style.display = "";
+    if (content && content.style.display !== "none") content.style.opacity = ".45";
 
     try {
         const qs = dfaQueryString();
         const resp = await fetch(window.DFA_DATA_URL + (qs ? "?" + qs : ""));
         const data = await resp.json();
+        if (seq !== dfaLoadSeq) return; // استجابة تجاوزتها استجابة أحدث
+
+        if (loadingNote) loadingNote.style.display = "none";
+        if (content) content.style.opacity = "";
 
         dfaBuildFilterBar(data);
 
@@ -383,6 +405,10 @@ async function dfaLoad() {
         dfaRenderPeriodSection(data);
     } catch (err) {
         console.error("تعذّر تحميل بيانات الصفحة:", err);
+        if (seq === dfaLoadSeq) {
+            if (loadingNote) loadingNote.style.display = "none";
+            if (content) content.style.opacity = "";
+        }
     }
 }
 

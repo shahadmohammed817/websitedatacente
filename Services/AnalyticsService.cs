@@ -551,6 +551,9 @@ namespace ExcelDashboard.Services
 
         /// <summary>"ضمن 30 يوم" أو "تجاوزت 30 يوم" أو null إن تعذّر حساب المدة - لتلوين نتائج البحث فورًا بلا طلب إضافي</summary>
         public string? DurationStatus { get; set; }
+
+        /// <summary>حالة الفرصة (إحدى الحالات الثلاث قيد الإجراء) - لفلترة القائمة عند الضغط على حالة بقائمة "تحت إجراءات الترسية"</summary>
+        public string? Status { get; set; }
     }
 
     /// <summary>رحلة فرصة واحدة عبر مراحلها الثلاث: فتح المظاريف ← الترسية ← توقيع العقد</summary>
@@ -2377,7 +2380,8 @@ namespace ExcelDashboard.Services
                         OpportunityName = r.OpportunityName,
                         InvestorName = r.InvestorName ?? (r.ContractNumber != null && investorsByContract.TryGetValue(r.ContractNumber, out var investorName) ? investorName : null),
                         ContractNumber = r.ContractNumber,
-                        DurationStatus = durationStatus
+                        DurationStatus = durationStatus,
+                        Status = r.Status
                     };
                 })
                 .OrderBy(x => x.OpportunityNumber)

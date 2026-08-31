@@ -77,7 +77,7 @@ namespace ExcelDashboard.Controllers
             var rows = await _analytics.GetExportRowsAsync(department, claimStatus, opportunityNumber, contractNumber, invoiceNumber);
 
             using var workbook = new XLWorkbook();
-            var sheet = workbook.Worksheets.Add("المديونيات والمطالبات");
+            var sheet = workbook.Worksheets.Add("مطالبات التنفيذ القضائي");
             sheet.RightToLeft = true;
 
             string[] headers = { "رقم العقد", "اسم المستثمر", "رقم الفاتورة", "حالة المطالبة", "الإدارة العامة", "المحفظة", "القيمة", "تاريخ استحقاق الدفعة" };
@@ -121,7 +121,7 @@ namespace ExcelDashboard.Controllers
             return File(
                 stream.ToArray(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "المديونيات_والمطالبات.xlsx");
+                "مطالبات_التنفيذ_القضائي.xlsx");
         }
     }
 }

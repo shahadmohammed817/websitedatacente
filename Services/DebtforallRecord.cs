@@ -1,6 +1,7 @@
 using ExcelDashboard.Data;
 using ExcelDashboard.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace ExcelDashboard.Services
 {
@@ -17,11 +18,13 @@ namespace ExcelDashboard.Services
     {
         private readonly AppDbContext _db;
         private readonly IExcelDashboardService _excelService;
+        private readonly IMemoryCache _cache;
 
-        public DebtforallImportService(AppDbContext db, IExcelDashboardService excelService)
+        public DebtforallImportService(AppDbContext db, IExcelDashboardService excelService, IMemoryCache cache)
         {
             _db = db;
             _excelService = excelService;
+            _cache = cache;
         }
 
         // أسماء الأعمدة الحقيقية بالملف بالضبط
@@ -138,6 +141,7 @@ namespace ExcelDashboard.Services
             await _db.DebtforallRecords.ExecuteDeleteAsync();
             await _db.DebtforallRecords.AddRangeAsync(list);
             await _db.SaveChangesAsync();
+            _cache.Remove(DebtforallCache.RecordsKey);
 
             return (true, $"تم استيراد {list.Count} سجل بنجاح.", list.Count);
         }

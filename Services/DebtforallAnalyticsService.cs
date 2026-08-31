@@ -1,10 +1,17 @@
 using ExcelDashboard.Data;
 using ExcelDashboard.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using System.Globalization;
 
 namespace ExcelDashboard.Services
 {
+    /// <summary>مفتاح تخبئة سجلات "المديونيات لجميع البنود" - يُلغى عند إعادة رفع الملف (DebtforallImportService)</summary>
+    internal static class DebtforallCache
+    {
+        public const string RecordsKey = "debtforall:records:v1";
+    }
+
     /// <summary>صف توزيع واحد حسب "تصنيف البند" (Classification - البنود الرئيسية: استثمار،
     /// رسوم، جزاءات... بعكس "البند" (Category) التفصيلي اللي فيه عشرات القيم) - يُستخدم لكل من
     /// رسمة الدونات (بالقيمة) ورسمة الأعمدة الأفقية (بالعدد) بنفس الوقت، حتى لا نكرر نفس التجميع
@@ -67,6 +74,8 @@ namespace ExcelDashboard.Services
 
         // خيارات فلاتر الصفحة - تُبنى دائمًا من كامل البيانات (بلا فلترة) حتى لا تتقلّص القوائم
         // نفسها عند اختيار فلتر
+        /// <summary>قيم عمود "الأمانة/بلدى" الخام - فلتر النطاق (أمانة/بلدية) أعلى الصفحة، نفس فكرة فلتر الصفحة الرئيسية</summary>
+        public List<string> ScopeOptions { get; set; } = new();
         public List<int> YearOptions { get; set; } = new();
         public List<int> QuarterOptions { get; set; } = new() { 1, 2, 3, 4 };
         public List<int> MonthOptions { get; set; } = new();
@@ -79,16 +88,55 @@ namespace ExcelDashboard.Services
 
     public interface IDebtforallAnalyticsService
     {
-        Task<DebtforallPageData> GetDataAsync(int? year, int? quarter, int? month, int? hijriYear);
+        Task<DebtforallPageData> GetDataAsync(int? year, int? quarter, int? month, int? hijriYear, string? scope);
     }
 
     public class DebtforallAnalyticsService : IDebtforallAnalyticsService
     {
         private readonly AppDbContext _db;
+        private readonly IMemoryCache _cache;
 
-        public DebtforallAnalyticsService(AppDbContext db)
+        public DebtforallAnalyticsService(AppDbContext db, IMemoryCache cache)
         {
             _db = db;
+            _cache = cache;
+        }
+
+        /// <summary>الأعمدة الستة الوحيدة التي تحتاجها تجميعات الصفحة - إسقاط مصغّر يقلّل حجم
+        /// القراءة من 216 ألف صف كامل إلى ما يلزم فقط (تسريع أول تحميل)</summary>
+        internal sealed class DebtforallSlim
+        {
+            public string? Scope { get; set; }
+            public string? Classification { get; set; }
+            public string? Category { get; set; }
+            public string? ItemNumber { get; set; }
+            public decimal? Value { get; set; }
+            public DateTime? CreatedDate { get; set; }
+        }
+
+        // كل السجلات تُقرأ مرة واحدة (بأعمدتها الستة اللازمة فقط) وتُخبَّأ - القراءة من SQLite هي
+        // كلفة الوقت الأساسية، والتجميعات بالذاكرة سريعة. تُلغى التخبئة عند إعادة رفع الملف.
+        private async Task<List<DebtforallSlim>> GetAllRecordsAsync()
+        {
+            if (_cache.TryGetValue(DebtforallCache.RecordsKey, out List<DebtforallSlim>? cached) && cached != null)
+                return cached;
+
+            var all = await _db.DebtforallRecords.AsNoTracking()
+                .Select(r => new DebtforallSlim
+                {
+                    Scope = r.Scope,
+                    Classification = r.Classification,
+                    Category = r.Category,
+                    ItemNumber = r.ItemNumber,
+                    Value = r.Value,
+                    CreatedDate = r.CreatedDate
+                })
+                .ToListAsync();
+            _cache.Set(DebtforallCache.RecordsKey, all, new MemoryCacheEntryOptions
+            {
+                SlidingExpiration = TimeSpan.FromMinutes(30)
+            });
+            return all;
         }
 
         // فترات "تاريخ الإنشاء" الثلاث بطلب صريح من المستخدمة: بلا تاريخ أو حتى 2019 = "فترة ما
@@ -107,7 +155,7 @@ namespace ExcelDashboard.Services
         // "رقم البند" نفسه قد يظهر بنصوص "البند" مختلفة قليلاً عبر الصفوف (مسافات/صياغة) - نستخدم
         // الرقم كمفتاح التجميع الفعلي، ونعرض أكثر نص "البند" تكرارًا لنفس الرقم كاسم للعرض فقط.
         // الصفوف بلا رقم بند (نادرة) تُجمَّع كل واحدة بمفردها عبر نص "البند" نفسه كمفتاح احتياطي
-        private static string SubItemGroupKey(DebtforallRecord r) =>
+        private static string SubItemGroupKey(DebtforallSlim r) =>
             !string.IsNullOrWhiteSpace(r.ItemNumber) ? "num:" + r.ItemNumber!.Trim() : "cat:" + r.Category!.Trim();
 
         // تقويم أم القرى الرسمي بالسعودية - نفس التقويم اللي يعتمده تنسيق العرض الهجري بإكسل
@@ -116,9 +164,9 @@ namespace ExcelDashboard.Services
         private static int? HijriYearOf(DateTime? gregorianDate) =>
             gregorianDate.HasValue ? HijriCalendar.GetYear(gregorianDate.Value) : (int?)null;
 
-        public async Task<DebtforallPageData> GetDataAsync(int? year, int? quarter, int? month, int? hijriYear)
+        public async Task<DebtforallPageData> GetDataAsync(int? year, int? quarter, int? month, int? hijriYear, string? scope)
         {
-            var all = await _db.DebtforallRecords.AsNoTracking().ToListAsync();
+            var all = await GetAllRecordsAsync();
             var result = new DebtforallPageData { HasData = all.Count > 0 };
             if (!result.HasData) return result;
 
@@ -129,8 +177,11 @@ namespace ExcelDashboard.Services
             result.MonthOptions = Enumerable.Range(1, 12).ToList();
             result.HijriYearOptions = all.Where(r => r.CreatedDate.HasValue).Select(r => HijriYearOf(r.CreatedDate)!.Value)
                 .Distinct().OrderByDescending(y => y).ToList();
+            result.ScopeOptions = all.Where(r => !string.IsNullOrWhiteSpace(r.Scope))
+                .Select(r => r.Scope!.Trim()).Distinct().OrderBy(s => s).ToList();
 
             var filtered = all.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(scope)) filtered = filtered.Where(r => (r.Scope ?? "").Trim() == scope);
             if (year.HasValue) filtered = filtered.Where(r => r.CreatedDate.HasValue && r.CreatedDate.Value.Year == year.Value);
             if (quarter.HasValue) filtered = filtered.Where(r => r.CreatedDate.HasValue && ((r.CreatedDate.Value.Month - 1) / 3) + 1 == quarter.Value);
             if (month.HasValue) filtered = filtered.Where(r => r.CreatedDate.HasValue && r.CreatedDate.Value.Month == month.Value);

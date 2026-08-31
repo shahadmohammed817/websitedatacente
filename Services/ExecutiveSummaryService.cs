@@ -128,7 +128,7 @@ namespace ExcelDashboard.Services
         public async Task<ExecutiveSummaryData> GetDebtDataAsync()
         {
             var result = new ExecutiveSummaryData();
-            var debtforall = await _debtforall.GetDataAsync(null, null, null, null);
+            var debtforall = await _debtforall.GetDataAsync(null, null, null, null, null);
             result.DebtforallHasData = debtforall.HasData;
             result.DebtforallTotalValue = debtforall.TotalValue;
             result.DebtforallTotalCount = debtforall.TotalCount;

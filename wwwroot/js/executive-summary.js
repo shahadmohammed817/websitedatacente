@@ -218,13 +218,13 @@ function exsTarhDonutListHtml(rows) {
             '<span class="ai-donut-dot" style="margin-top:3px;background:' + color + ';"></span>' +
             '<span style="display:flex;flex-direction:column;gap:1px;min-width:0;">' +
                 '<span class="ai-donut-list-name" style="white-space:normal;">' + exsEscape(r.typeLabel) + '</span>' +
-                '<span class="ai-donut-list-count" style="font-size:.72rem;">' + exsFormatNum(r.finalizedValue) + ' ر.س</span>' +
+                '<span class="ai-donut-list-count" style="font-size:.72rem;">' + exsFormatNum(r.finalizedCount) + ' عقد • ' + exsFormatNum(r.finalizedValue) + ' ر.س</span>' +
             '</span>' +
         '</div>';
     }).join("");
 }
 
-// دونات "قيمة العقود المبرومة حسب النوع" - القيمة فقط (بلا عدد)، نفس منطق صف 1 (2026)
+// دونات "قيمة العقود المبرومة حسب النوع" - القيمة (حجم القطعة) + العدد (بالقائمة والتلميح)، صف 1 (2026 فقط)
 function exsRenderTarhDonut(rowId, tendered) {
     const row = document.getElementById(rowId);
     if (!row) return;
@@ -241,7 +241,16 @@ function exsRenderTarhDonut(rowId, tendered) {
         '</div>';
     row.appendChild(div);
     const chart = echarts.init(document.getElementById(chartId));
-    chart.setOption(exsBuildPlainDonutOption(donutRows, total, "إجمالي القيمة", "القيمة"));
+    const donutOption = exsBuildPlainDonutOption(donutRows, total, "إجمالي القيمة", "القيمة");
+    // tooltip يعرض القيمة (والنسبة) والعدد معًا - بطلب المستخدمة
+    donutOption.tooltip.formatter = function (p) {
+        var trow = tendered.filter(function (t) { return t.typeLabel === p.name; })[0];
+        var pct = total > 0 ? Math.round((p.value / total) * 1000) / 10 : 0;
+        return '<div style="font-weight:700;">' + exsEscape(p.name) + '</div>' +
+            '<div>القيمة: <strong>' + exsFormatNum(p.value) + '</strong> (' + pct + '%)</div>' +
+            (trow ? '<div>عدد العقود: <strong>' + exsFormatNum(trow.finalizedCount) + '</strong></div>' : '');
+    };
+    chart.setOption(donutOption);
     exsCharts.push(chart);
     requestAnimationFrame(function () { try { chart.resize(); } catch (e) {} });
 }
@@ -327,12 +336,11 @@ function exsRenderTarhRow(data) {
         const tendered = data.tarhTypeTenderedSummary || [];
         if (tendered.length) {
             exsRenderTarhDonut("exsRow1Charts", tendered);
-            exsRenderChart("exsRow1Charts", "العقود المبرومة 2026 حسب النوع", null, exsBuildTypeValueRateOption(tendered), 280);
         }
         const byDept = data.tarhFinalizedByDepartment || [];
         if (byDept.length) {
             const deptTotal = byDept.reduce(function (s, r) { return s + r.totalValue; }, 0);
-            exsRenderChart("exsRow1Charts", "قيمة العقود المبرومة حسب الإدارة العامة (2026)", null, exsBuildDeptFinalizedValueOption(byDept, deptTotal), 280);
+            exsRenderChart("exsRow1Charts", "قيمة العقود المبرومة حسب الإدارة العامة (2026)", null, exsBuildDeptFinalizedValueOption(byDept, deptTotal), 300);
         }
     }
 }
