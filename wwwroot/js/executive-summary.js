@@ -205,8 +205,8 @@ function exsBuildTargetGaugeOption(percent) {
 
 /* ==========================================================================
    صف 1: الفرص/العقود المطروحة 2026 - كروت + دونات "عدد الفرص حسب النوع" (مع قيمة العقود
-   المبرومة بجانبها) + لوحة "عدد الفرص ونسبة الإبرام حسب النوع" (عمود لكل نوع + حلقة نسبة
-   الإبرام فوقه) + بار "قيمة العقود المبرومة حسب الإدارة العامة" - كل ذلك 2026 فقط بطلب صريح
+   المبرمة بجانبها) + لوحة "عدد الفرص ونسبة الإبرام حسب النوع" (عمود لكل نوع + حلقة نسبة
+   الإبرام فوقه) + بار "قيمة العقود المبرمة حسب الإدارة العامة" - كل ذلك 2026 فقط بطلب صريح
    من المستخدمة، بلا فلاتر (نفس منطق صفحة "الطرح")
    ========================================================================== */
 // اسم النوع فوق قيمته (بدل جنبه بنفس السطر) - العمود ضيّق (ثلث الصف) فلا تكفي المساحة لعرض
@@ -224,7 +224,7 @@ function exsTarhDonutListHtml(rows) {
     }).join("");
 }
 
-// دونات "قيمة العقود المبرومة حسب النوع" - القيمة (حجم القطعة) + العدد (بالقائمة والتلميح)، صف 1 (2026 فقط)
+// دونات "قيمة العقود المبرمة حسب النوع" - القيمة (حجم القطعة) + العدد (بالقائمة والتلميح)، صف 1 (2026 فقط)
 function exsRenderTarhDonut(rowId, tendered) {
     const row = document.getElementById(rowId);
     if (!row) return;
@@ -234,7 +234,7 @@ function exsRenderTarhDonut(rowId, tendered) {
     const div = document.createElement("div");
     div.className = "chart-card";
     div.innerHTML =
-        '<div class="chart-header"><div class="chart-title">قيمة العقود المبرومة 2026 حسب النوع</div></div>' +
+        '<div class="chart-header"><div class="chart-title">قيمة العقود المبرمة 2026 حسب النوع</div></div>' +
         '<div class="ai-donut-split">' +
             '<div class="echart-box" id="' + chartId + '" style="height:230px;"></div>' +
             '<div class="ai-donut-list">' + exsTarhDonutListHtml(tendered) + '</div>' +
@@ -255,7 +255,7 @@ function exsRenderTarhDonut(rowId, tendered) {
     requestAnimationFrame(function () { try { chart.resize(); } catch (e) {} });
 }
 
-// "العقود المبرومة 2026 حسب النوع" - عمود واحد لكل نوع، عدده فوقه (بطلب المستخدمة: بلا
+// "العقود المبرمة 2026 حسب النوع" - عمود واحد لكل نوع، عدده فوقه (بطلب المستخدمة: بلا
 // عمود الفرص المطروحة وبلا نسبة إبرام)
 function exsBuildTypeValueRateOption(rows) {
     const labels = rows.map(function (r) { return r.typeLabel; });
@@ -268,7 +268,7 @@ function exsBuildTypeValueRateOption(rows) {
             formatter: function (params) {
                 const i = params[0].dataIndex;
                 return '<div style="font-weight:700;margin-bottom:4px;">' + exsEscape(labels[i]) + '</div>' +
-                    '<div>العقود المبرومة 2026: <strong>' + exsFormatNum(finalized[i]) + '</strong></div>';
+                    '<div>العقود المبرمة 2026: <strong>' + exsFormatNum(finalized[i]) + '</strong></div>';
             }
         }),
         grid: { left: 10, right: 20, top: 20, bottom: 10, containLabel: true },
@@ -276,7 +276,7 @@ function exsBuildTypeValueRateOption(rows) {
         yAxis: exsAxisStyle({ type: "value", max: Math.ceil(maxVal * 1.15) }),
         series: [
             {
-                name: "العقود المبرومة 2026", type: "bar", barMaxWidth: 34,
+                name: "العقود المبرمة 2026", type: "bar", barMaxWidth: 34,
                 itemStyle: { color: EXS_C.dark, borderRadius: [4, 4, 0, 0] },
                 label: { show: true, position: "top", formatter: function (p) { return exsFormatNum(p.value); }, color: EXS_C.axisText, fontWeight: 700, fontSize: 11 },
                 data: finalized
@@ -326,8 +326,8 @@ function exsRenderTarhRow(data) {
 
     if (kpiWrap) {
         kpiWrap.innerHTML =
-            exsKpiCardHtml("c1", "bi-cash-stack", "إجمالي القيمة", exsSarVal(data.tarhTotalOpportunitiesValue), "عدد الفرص: " + exsFormatNum(data.tarhTotalOpportunities)) +
-            exsKpiCardHtml("c4", "bi-file-earmark-check", "إجمالي العقود المبرومة", exsSarVal(finalizedValue), exsFormatNum(data.tarhFinalizedCount) + " عقد") +
+            exsKpiCardHtml("c1", "bi-cash-stack", "قيمة العقود المبرمة 2026", exsSarVal(finalizedValue), exsFormatNum(data.tarhFinalizedCount) + " عقد (الأجرة السنوية)") +
+            exsKpiCardHtml("c4", "bi-file-earmark-check", "إجمالي العقود المبرمة 2026", exsFormatNum(data.tarhFinalizedCount) + " عقد") +
             exsPercentCardHtml("c2", "bi-graph-up-arrow", "نسبة الإبرام", data.tarhFinalizedPercent);
     }
 
@@ -340,7 +340,7 @@ function exsRenderTarhRow(data) {
         const byDept = data.tarhFinalizedByDepartment || [];
         if (byDept.length) {
             const deptTotal = byDept.reduce(function (s, r) { return s + r.totalValue; }, 0);
-            exsRenderChart("exsRow1Charts", "قيمة العقود المبرومة حسب الإدارة العامة (2026)", null, exsBuildDeptFinalizedValueOption(byDept, deptTotal), 300);
+            exsRenderChart("exsRow1Charts", "قيمة العقود المبرمة حسب الإدارة العامة (2026)", null, exsBuildDeptFinalizedValueOption(byDept, deptTotal), 300);
         }
     }
 }
@@ -711,7 +711,7 @@ function exsRenderDeptProSection(claimsData, depts) {
     kpiRow.innerHTML =
         exsEdpStatCardHtml(EXS_C.dark, "bi-file-earmark-text", "إجمالي عدد المطالبات", exsFormatNum(claimsData.claimsTotalCount)) +
         exsEdpStatCardHtml(EXS_C.mid, "bi-cash-stack", "إجمالي قيمة المطالبات", exsSarVal(claimsData.claimsTotalValue)) +
-        exsEdpStatCardHtml(EXS_C.lime, "bi-check-circle", "نسبة التحصيل الإجمالية", collectedPct.toFixed(1) + "%");
+        exsEdpStatCardHtml(EXS_C.lime, "bi-check-circle", "نسبة المعالجة الإجمالية", collectedPct.toFixed(1) + "%");
     wrap.appendChild(kpiRow);
 
     const grid = document.createElement("div");
