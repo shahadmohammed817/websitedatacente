@@ -126,6 +126,12 @@ namespace ExcelDashboard.Services
         private static readonly string[] PaymentStatusColumnKeywords = { "حالة السداد", "حالة الدفع", "السداد", "الدفع" };
         private static readonly string[] CollectedStatusValues = { "مسدد", "مسوى", "محصل", "مدفوع", "سدد" };
 
+        // "مسدد/مسوى/محصلة/مدفوعة" = محصّل، أما أي حالة تحتوي "غير" (مثل "غير مسدد") فتُعتبر غير محصّلة
+        internal static bool IsCollectedStatus(string? status) =>
+            !string.IsNullOrWhiteSpace(status)
+            && !status.Contains("غير")
+            && CollectedStatusValues.Any(k => status.Contains(k));
+
         // عمود "نوع الإيراد (تصنيف المستهدف)" - لصفحة "مقارنة المستهدفات" (يُستخدم لتجميع
         // المستهدف السنوي لكل جهة/نوع إيراد دون تكراره لكل صف عند حساب إجمالي المستهدف)
         private static readonly string[] RevenueTypeColumnKeywords =
@@ -822,10 +828,7 @@ namespace ExcelDashboard.Services
                 decimal? value = valueCol != null ? GetDecimal(row, valueCol) : null;
                 string? status = statusCol != null ? GetString(row, statusCol) : null;
 
-                // "مسدد/مسوى/محصلة/مدفوعة" = محصّل، أما أي حالة تحتوي "غير" (مثل "غير مسدد") فتُعتبر غير محصّلة
-                bool isCollected = !string.IsNullOrWhiteSpace(status)
-                    && !status.Contains("غير")
-                    && CollectedStatusValues.Any(k => status.Contains(k));
+                bool isCollected = IsCollectedStatus(status);
 
                 // اسم العقد: نأخذه فقط من عمود "اسم العقد" الصريح كما هو بالملف. إن كان فارغًا
                 // لهذا الصف يبقى فارغًا (بدون أي بديل تلقائي مثل اسم المستثمر أو غيره)

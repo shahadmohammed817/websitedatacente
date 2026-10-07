@@ -1,4 +1,4 @@
-using ClosedXML.Excel;
+﻿using ClosedXML.Excel;
 using ExcelDashboard.Data;
 using ExcelDashboard.Models;
 using Microsoft.EntityFrameworkCore;
@@ -57,11 +57,25 @@ namespace ExcelDashboard.Services
                 rows.Count);
         }
 
-        // مواقع الأعمدة ثابتة حسب تخطيط الملف المعتمد (جدول Excel باسم "الجدول2"):
-        // 3 = تصنيف البند، 7 = القيمة، 9 = تاريخ الدفع
-        private const int ClassificationColIndex = 3;
-        private const int ValueColIndex = 7;
-        private const int PaymentDateColIndex = 9;
+        // تُحدَّد الأعمدة باسم العنوان بالصف الأول (تخطيط الملف يختلف بين النسخ)، مع الرجوع
+        // لمواقع التخطيط القديم ("الجدول2": 3 = تصنيف البند، 7 = القيمة، 9 = تاريخ الدفع) إن لم يوجد العنوان.
+        // التاريخ: "تاريخ الدفع" أولاً، ثم "تاريخ الإنشاء" لملفات لا تحوي عمود دفع
+        private const int DefaultClassificationColIndex = 3;
+        private const int DefaultValueColIndex = 7;
+        private const int DefaultPaymentDateColIndex = 9;
+
+        private static int FindColumn(IXLWorksheet ws, int fallback, params string[] headers)
+        {
+            var headerRow = ws.Row(1);
+            var lastCol = headerRow.LastCellUsed()?.Address.ColumnNumber ?? 0;
+            foreach (var h in headers)
+            {
+                var target = AliasKey(h);
+                for (int c = 1; c <= lastCol; c++)
+                    if (AliasKey(headerRow.Cell(c).GetString()) == target) return c;
+            }
+            return fallback;
+        }
 
         // تُقرَأ فقط معاملات سنة الأساس نفسها (2025) من عمود "تاريخ الدفع" - الملف قد يحوي
         // صفوفًا من سنوات أخرى، ونحتاج شهر كل معاملة (لا مجموع سنوي واحد فقط) حتى تقدر بطاقة
@@ -76,20 +90,28 @@ namespace ExcelDashboard.Services
             var worksheet = workbook.Worksheets.FirstOrDefault();
             if (worksheet == null) throw new InvalidOperationException("الملف لا يحتوي على أي ورقة عمل.");
 
+            var classificationCol = FindColumn(worksheet, DefaultClassificationColIndex, "تصنيف البند");
+            var valueCol = FindColumn(worksheet, DefaultValueColIndex, "القيمة");
+            var paymentDateCol = FindColumn(worksheet, DefaultPaymentDateColIndex, "تاريخ الدفع", "تاريخ السداد", "تاريخ الإنشاء");
+            // "حالة السداد": تُحسَب فقط الصفوف المحصّلة فعليًا (محصل/مسدد/مسوى) بنفس قاعدة
+            // استيراد الإيرادات الرئيسي - بلا العمود (ملفات قديمة) تُحسَب كل الصفوف كما كانت
+            var statusCol = FindColumn(worksheet, 0, "حالة السداد", "حالة الدفع");
+
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
             var sums = new Dictionary<(string Classification, int Month), decimal>();
 
             for (int r = 2; r <= lastRow; r++)
             {
                 var row = worksheet.Row(r);
-                var rawClassification = row.Cell(ClassificationColIndex).GetString().Trim();
+                var rawClassification = row.Cell(classificationCol).GetString().Trim();
                 if (string.IsNullOrEmpty(rawClassification)) continue;
+                if (statusCol > 0 && !DataImportService.IsCollectedStatus(row.Cell(statusCol).GetString().Trim())) continue;
 
-                var valueCell = row.Cell(ValueColIndex);
+                var valueCell = row.Cell(valueCol);
                 if (valueCell.IsEmpty()) continue;
                 if (!decimal.TryParse(valueCell.GetString(), out var value)) continue;
 
-                var dateCell = row.Cell(PaymentDateColIndex);
+                var dateCell = row.Cell(paymentDateCol);
                 if (dateCell.IsEmpty() || !dateCell.TryGetValue<DateTime>(out var paymentDate)) continue;
                 if (paymentDate.Year != BaselineYear) continue;
 
