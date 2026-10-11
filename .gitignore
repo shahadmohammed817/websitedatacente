@@ -1,6 +1,4 @@
-bin/
+﻿bin/
 obj/
-**/bin/
-**/obj/
 .vs/
 *.user
